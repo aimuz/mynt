@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Mynt NAS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="container">
+            <div class="logo">🏠 Mynt NAS</div>
+            <div class="user-info">
+                <span id="username">Loading...</span>
+                <button class="btn btn-secondary" onclick="api.logout()">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Stats Grid -->
+        <div class="grid">
+            <div class="stat-card">
+                <div class="stat-label">Disks</div>
+                <div class="stat-value" id="diskCount">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pools</div>
+                <div class="stat-value" id="poolCount">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Shares</div>
+                <div class="stat-value" id="shareCount">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Notifications</div>
+                <div class="stat-value" id="notifCount">-</div>
+            </div>
+        </div>
+
+        <!-- Disks -->
+        <div class="card">
+            <h2>💾 Disks</h2>
+            <div id="disksContent"></div>
+        </div>
+
+        <!-- Pools -->
+        <div class="card">
+            <h2>🏊 Storage Pools</h2>
+            <div id="poolsContent"></div>
+        </div>
+
+        <!-- Shares -->
+        <div class="card">
+            <h2>📁 Shares</h2>
+            <div id="sharesContent"></div>
+        </div>
+
+        <!-- Recent Notifications -->
+        <div class="card">
+            <h2>🔔 Recent Notifications</h2>
+            <div id="notifsContent"></div>
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script>
+        // Check auth
+        const user = api.getCurrentUser();
+        if (!user) {
+            window.location = '/login.html';
+        }
+
+        // Display username
+        document.getElementById('username').textContent = user.full_name || user.username;
+
+        // Load data
+        async function loadData() {
+            try {
+                // Load disks
+                const disks = await api.listDisks();
+                document.getElementById('diskCount').textContent = disks.length;
+                renderDisks(disks);
+
+                // Load pools
+                const pools = await api.listPools();
+                document.getElementById('poolCount').textContent = pools.length;
+                renderPools(pools);
+
+                // Load shares
+                const shares = await api.listShares();
+                document.getElementById('shareCount').textContent = shares.length;
+                renderShares(shares);
+
+                // Load notifications
+                const notifCount = await api.getNotificationCount();
+                document.getElementById('notifCount').textContent = notifCount.unread;
+
+                const notifs = await api.listNotifications('', 5);
+                renderNotifications(notifs);
+
+            } catch (err) {
+                console.error('Failed to load data:', err);
+            }
+        }
+
+        function renderDisks(disks) {
+            const container = document.getElementById('disksContent');
+            if (disks.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No disks found</p></div>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Model</th>
+                        <th>Serial</th>
+                        <th>Size</th>
+                        <th>Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${disks.map(d => `
+                        <tr>
+                            <td>${d.name}</td>
+                            <td>${d.model || '-'}</td>
+                            <td>${d.serial || '-'}</td>
+                            <td>${formatBytes(d.size)}</td>
+                            <td>${d.type || '-'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            container.appendChild(table);
+        }
+
+        function renderPools(pools) {
+            const container = document.getElementById('poolsContent');
+            if (pools.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No pools created</p></div>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Health</th>
+                        <th>Size</th>
+                        <th>Used</th>
+                        <th>Free</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${pools.map(p => `
+                        <tr>
+                            <td>${p.name}</td>
+                            <td>${p.health}</td>
+                            <td>${formatBytes(p.size)}</td>
+                            <td>${formatBytes(p.allocated)}</td>
+                            <td>${formatBytes(p.free)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            container.appendChild(table);
+        }
+
+        function renderShares(shares) {
+            const container = document.getElementById('sharesContent');
+            if (shares.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No shares configured</p></div>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Path</th>
+                        <th>Protocol</th>
+                        <th>Access</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${shares.map(s => `
+                        <tr>
+                            <td>${s.name}</td>
+                            <td>${s.path}</td>
+                            <td>${s.protocol.toUpperCase()}</td>
+                            <td>${s.read_only ? 'Read-Only' : 'Read-Write'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            container.appendChild(table);
+        }
+
+        function renderNotifications(notifs) {
+            const container = document.getElementById('notifsContent');
+            if (notifs.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No notifications</p></div>';
+                return;
+            }
+
+            const list = notifs.map(n => `
+                <div style="padding: 10px; border-bottom: 1px solid #e0e0e0;">
+                    <strong>${n.type}</strong>
+                    <span style="float: right; color: #757575; font-size: 12px;">
+                        ${new Date(n.created_at).toLocaleString()}
+                    </span>
+                    <div style="font-size: 14px; color: #757575; margin-top: 5px;">
+                        Status: ${n.status}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = list;
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes) return '-';
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // Load data on page load
+        loadData();
+
+        // Refresh every 30 seconds
+        setInterval(loadData, 30000);
+    </script>
+</body>
+
+</html>
