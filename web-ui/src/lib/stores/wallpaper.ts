@@ -11,18 +11,6 @@ export interface Wallpaper {
 
 export const predefinedWallpapers: Wallpaper[] = [
     {
-        id: 'gradient-default',
-        name: 'Default Gradient',
-        type: 'gradient',
-        value: 'linear-gradient(135deg, hsl(220, 70%, 90%) 0%, hsl(240, 60%, 95%) 50%, hsl(200, 65%, 92%) 100%)'
-    },
-    {
-        id: 'gradient-dark',
-        name: 'Dark Gradient',
-        type: 'gradient',
-        value: 'linear-gradient(135deg, hsl(220, 40%, 8%) 0%, hsl(240, 30%, 12%) 50%, hsl(200, 35%, 10%) 100%)'
-    },
-    {
         id: 'blue-waves',
         name: 'Blue Waves',
         type: 'image',
