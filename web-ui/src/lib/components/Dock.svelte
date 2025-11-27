@@ -35,9 +35,7 @@
                         class="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg transition-all"
                         style="background: {app.color};"
                     >
-                        <app.icon
-                            class="w-8 h-8 text-white"
-                        />
+                        <app.icon class="w-8 h-8 text-white" />
                     </div>
 
                     <!-- App Name Tooltip -->
@@ -60,7 +58,7 @@
     </div>
 </div>
 
-<style>
+<style lang="postcss">
     @reference "tailwindcss";
     .dock-item {
         @apply transition-all duration-200 ease-out;
