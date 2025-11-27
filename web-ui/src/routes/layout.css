@@ -255,24 +255,6 @@ body {
     animation: spin 1s linear infinite;
 }
 
-/* 6. Desktop Background - Dynamic Gradient */
-
-.desktop-bg {
-    /* 默认浅色渐变 */
-    background: linear-gradient(135deg,
-            hsl(220, 70%, 90%) 0%,
-            hsl(240, 60%, 95%) 50%,
-            hsl(200, 65%, 92%) 100%);
-}
-
-@media (prefers-color-scheme: dark) {
-    .desktop-bg {
-        background: linear-gradient(135deg,
-                hsl(220, 40%, 8%) 0%,
-                hsl(240, 30%, 12%) 50%,
-                hsl(200, 35%, 10%) 100%);
-    }
-}
 
 /* 7. Scrollbar Styling - macOS style */
 

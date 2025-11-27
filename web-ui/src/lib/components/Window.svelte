@@ -78,7 +78,7 @@
 
 <div
     bind:this={windowEl}
-    class="fixed window-shadow rounded-xl overflow-hidden scale-in"
+    class="fixed window-shadow rounded-xl overflow-hidden"
     style="
     left: {windowPos.x}px;
     top: {windowPos.y}px;
