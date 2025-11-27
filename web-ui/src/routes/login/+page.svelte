@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
     import { api } from "$lib/api";
+    import { currentWallpaper } from "$lib/stores/wallpaper";
     import { LogIn } from "@lucide/svelte";
 
     let username = $state("");
@@ -32,9 +33,19 @@
             handleLogin();
         }
     }
+
+    function getBackgroundStyle(wallpaper: typeof $currentWallpaper) {
+        if (wallpaper.type === "image") {
+            return `background-image: url('${wallpaper.value}'); background-size: cover; background-position: center; background-repeat: no-repeat;`;
+        }
+        return `background: ${wallpaper.value};`;
+    }
 </script>
 
-<div class="min-h-screen desktop-bg flex items-center justify-center p-4">
+<div
+    class="min-h-screen flex items-center justify-center p-4 transition-all duration-500"
+    style={getBackgroundStyle($currentWallpaper)}
+>
     <!-- Login Card -->
     <div
         class="glass-strong rounded-3xl p-8 w-full max-w-md window-shadow scale-in"
