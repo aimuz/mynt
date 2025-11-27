@@ -143,7 +143,7 @@
         <div class="flex items-center gap-6">
             <div class="flex items-center gap-2">
                 <div
-                    class="w-5 h-5 rounded-md bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center"
+                    class="w-5 h-5 rounded-md bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center"
                 >
                     <span class="text-white text-xs font-bold">M</span>
                 </div>
@@ -189,7 +189,7 @@
     <!-- Desktop Content -->
     <div class="pt-12 p-6 flex gap-6 h-[calc(100vh-8rem)]">
         <!-- Left: Widgets Area - Fixed width on large screens -->
-        <div class="w-80 flex-shrink-0 space-y-4 overflow-y-auto">
+        <div class="w-80 shrink-0 space-y-4 overflow-y-auto">
             <Widget title="System Status" icon={Activity} size="medium">
                 {#snippet children()}
                     <SystemStatus />
@@ -273,7 +273,7 @@
     <!-- Context Menu -->
     {#if showContextMenu}
         <div
-            class="fixed glass-strong rounded-lg shadow-xl py-1 min-w-48 z-[200] border border-white/20"
+            class="fixed glass-strong rounded-lg shadow-xl py-1 min-w-48 z-200 border border-white/20"
             style="left: {contextMenuX}px; top: {contextMenuY}px;"
         >
             <button
@@ -281,7 +281,7 @@
                 class="w-full px-4 py-2 text-left text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
             >
                 <div
-                    class="w-4 h-4 rounded bg-gradient-to-br from-blue-500 to-purple-600"
+                    class="w-4 h-4 rounded bg-linear-to-br from-blue-500 to-purple-600"
                 ></div>
                 Change Wallpaper
             </button>

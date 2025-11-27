@@ -31,7 +31,7 @@
 
 <!-- Backdrop -->
 <div
-    class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-6 scale-in"
+    class="fixed inset-0 bg-black/50 backdrop-blur-sm z-100 flex items-center justify-center p-6 scale-in"
     onclick={handleBackdropClick}
     role="button"
     tabindex="0"
@@ -93,7 +93,7 @@
 
                     <!-- Name Overlay -->
                     <div
-                        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3"
+                        class="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent p-3"
                     >
                         <p class="text-white text-sm font-medium">
                             {wallpaper.name}

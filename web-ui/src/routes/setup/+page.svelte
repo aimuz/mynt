@@ -69,7 +69,7 @@
         <!-- Header -->
         <div class="text-center mb-8">
             <div
-                class="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg"
+                class="w-20 h-20 mx-auto mb-4 rounded-2xl bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg"
             >
                 <Server class="w-10 h-10 text-white" />
             </div>
@@ -124,7 +124,7 @@
                 <div>
                     <label
                         for="username"
-                        class="block text-sm font-medium text-foreground mb-2 flex items-center gap-2"
+                        class="text-sm font-medium text-foreground mb-2 flex items-center gap-2"
                     >
                         <User class="w-4 h-4" />
                         Username *
@@ -141,7 +141,7 @@
                 <div>
                     <label
                         for="fullName"
-                        class="block text-sm font-medium text-foreground mb-2 flex items-center gap-2"
+                        class="text-sm font-medium text-foreground mb-2 flex items-center gap-2"
                     >
                         <User class="w-4 h-4" />
                         Full Name
@@ -158,7 +158,7 @@
                 <div>
                     <label
                         for="email"
-                        class="block text-sm font-medium text-foreground mb-2 flex items-center gap-2"
+                        class="text-sm font-medium text-foreground mb-2 flex items-center gap-2"
                     >
                         <Mail class="w-4 h-4" />
                         Email
@@ -174,7 +174,7 @@
 
                 <button
                     onclick={nextStep}
-                    class="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    class="w-full py-3 rounded-xl bg-linear-to-r from-blue-500 to-purple-600 text-white font-semibold hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                     <span>Continue</span>
                     <ArrowRight class="w-5 h-5" />
@@ -197,7 +197,7 @@
                 <div>
                     <label
                         for="password"
-                        class="block text-sm font-medium text-foreground mb-2 flex items-center gap-2"
+                        class="text-sm font-medium text-foreground mb-2 flex items-center gap-2"
                     >
                         <Lock class="w-4 h-4" />
                         Password *
@@ -214,7 +214,7 @@
                 <div>
                     <label
                         for="confirmPassword"
-                        class="block text-sm font-medium text-foreground mb-2 flex items-center gap-2"
+                        class="text-sm font-medium text-foreground mb-2 flex items-center gap-2"
                     >
                         <Lock class="w-4 h-4" />
                         Confirm Password *
@@ -262,7 +262,7 @@
                     <button
                         onclick={handleSetup}
                         disabled={loading}
-                        class="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        class="flex-1 py-3 rounded-xl bg-linear-to-br from-blue-500 to-purple-600 text-white font-semibold hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {#if loading}
                             <div
