@@ -15,9 +15,11 @@
     import SystemStatus from "$lib/widgets/SystemStatus.svelte";
     import Clock from "$lib/widgets/Clock.svelte";
     import RecentNotifications from "$lib/widgets/RecentNotifications.svelte";
+    import WallpaperSelector from "$lib/components/WallpaperSelector.svelte";
     import { onMount } from "svelte";
     import { goto } from "$app/navigation";
     import { api } from "$lib/api";
+    import { currentWallpaper } from "$lib/stores/wallpaper";
 
     // Check authentication
     onMount(() => {
@@ -30,6 +32,10 @@
         Array<{ id: string; title: string; icon: any; component: any }>
     >([]);
     let currentTime = $state(new Date());
+    let showContextMenu = $state(false);
+    let contextMenuX = $state(0);
+    let contextMenuY = $state(0);
+    let showWallpaperSelector = $state(false);
 
     // Update time every second
     setInterval(() => {
@@ -99,9 +105,37 @@
         api.logout();
         goto("/login");
     }
+
+    function handleContextMenu(e: MouseEvent) {
+        e.preventDefault();
+        contextMenuX = e.clientX;
+        contextMenuY = e.clientY;
+        showContextMenu = true;
+    }
+
+    function closeContextMenu() {
+        showContextMenu = false;
+    }
+
+    function openWallpaperSelector() {
+        showWallpaperSelector = true;
+        closeContextMenu();
+    }
+
+    function getBackgroundStyle(wallpaper: typeof $currentWallpaper) {
+        if (wallpaper.type === "image") {
+            return `background-image: url('${wallpaper.value}'); background-size: cover; background-position: center; background-repeat: no-repeat;`;
+        }
+        return `background: ${wallpaper.value};`;
+    }
 </script>
 
-<div class="relative w-full h-screen desktop-bg overflow-hidden">
+<div
+    class="relative w-full h-screen overflow-hidden transition-all duration-500"
+    style={getBackgroundStyle($currentWallpaper)}
+    oncontextmenu={handleContextMenu}
+    onclick={closeContextMenu}
+>
     <!-- Menu Bar (macOS style) -->
     <div
         class="fixed top-0 left-0 right-0 glass-strong h-8 flex items-center justify-between px-4 z-50 border-b border-white/10"
@@ -190,9 +224,7 @@
                             class="w-16 h-16 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
                             style="background: {app.color};"
                         >
-                            <app.icon
-                                class="w-8 h-8 text-white"
-                            />
+                            <app.icon class="w-8 h-8 text-white" />
                         </div>
                         <span
                             class="text-xs font-medium text-foreground text-center leading-tight"
@@ -237,4 +269,27 @@
 
     <!-- Dock -->
     <Dock {apps} />
+
+    <!-- Context Menu -->
+    {#if showContextMenu}
+        <div
+            class="fixed glass-strong rounded-lg shadow-xl py-1 min-w-48 z-[200] border border-white/20"
+            style="left: {contextMenuX}px; top: {contextMenuY}px;"
+        >
+            <button
+                onclick={openWallpaperSelector}
+                class="w-full px-4 py-2 text-left text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+            >
+                <div
+                    class="w-4 h-4 rounded bg-gradient-to-br from-blue-500 to-purple-600"
+                ></div>
+                Change Wallpaper
+            </button>
+        </div>
+    {/if}
+
+    <!-- Wallpaper Selector -->
+    {#if showWallpaperSelector}
+        <WallpaperSelector onClose={() => (showWallpaperSelector = false)} />
+    {/if}
 </div>
