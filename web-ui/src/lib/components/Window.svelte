@@ -90,16 +90,17 @@
   "
 >
     <!-- Window Header -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
         class="glass-strong h-12 flex items-center justify-between px-4 cursor-move border-b border-white/10"
         onmousedown={handleMouseDownDrag}
+        role="group"
+        aria-label="Window Header"
     >
         <div class="flex items-center gap-3">
             {#if icon}
                 {@const SvelteComponent = icon}
-                <SvelteComponent
-                    class="w-5 h-5 text-foreground/70"
-                />
+                <SvelteComponent class="w-5 h-5 text-foreground/70" />
             {/if}
             <span class="font-semibold text-sm text-foreground">{title}</span>
         </div>
