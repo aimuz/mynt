@@ -4,7 +4,8 @@
         predefinedWallpapers,
         type Wallpaper,
     } from "$lib/stores/wallpaper";
-    import { X, Check } from "@lucide/svelte";
+    import { Check, ImageIcon } from "@lucide/svelte";
+    import Window from "./Window.svelte";
 
     interface Props {
         onClose: () => void;
@@ -29,37 +30,37 @@
     }
 </script>
 
-<!-- Backdrop -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- Backdrop for modal effect -->
 <div
-    class="fixed inset-0 bg-black/50 backdrop-blur-sm z-100 flex items-center justify-center p-6 scale-in"
+    class="fixed inset-0 bg-black/50 backdrop-blur-sm z-99"
     onclick={handleBackdropClick}
     role="button"
     tabindex="0"
+></div>
+
+<!-- Window Component -->
+<Window
+    id="wallpaper-selector"
+    title="Change Wallpaper"
+    icon={ImageIcon}
+    x={window.innerWidth / 2 - 400}
+    y={window.innerHeight / 2 - 300}
+    width={800}
+    height={600}
+    minWidth={600}
+    minHeight={400}
+    {onClose}
 >
-    <!-- Modal -->
-    <div
-        class="glass-strong rounded-2xl shadow-2xl max-w-3xl w-full p-6 scale-in"
-    >
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-6">
-            <div>
-                <h2 class="text-2xl font-semibold text-foreground">
-                    Change Wallpaper
-                </h2>
-                <p class="text-sm text-muted-foreground mt-1">
-                    Select a wallpaper for your desktop
-                </p>
-            </div>
-            <button
-                onclick={onClose}
-                class="w-8 h-8 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-center transition-colors"
-            >
-                <X class="w-5 h-5" />
-            </button>
-        </div>
+    <div class="p-6 h-full flex flex-col">
+        <p class="text-sm text-muted-foreground mb-6">
+            Select a wallpaper for your desktop
+        </p>
 
         <!-- Wallpaper Grid -->
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <div
+            class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6 flex-1 overflow-y-auto overflow-x-hidden p-2"
+        >
             {#each predefinedWallpapers as wallpaper (wallpaper.id)}
                 <button
                     onclick={() => handleSelect(wallpaper)}
@@ -104,7 +105,9 @@
         </div>
 
         <!-- Actions -->
-        <div class="flex items-center justify-end gap-3">
+        <div
+            class="flex items-center justify-end gap-3 pt-4 border-t border-white/10"
+        >
             <button
                 onclick={onClose}
                 class="px-4 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-sm font-medium"
@@ -119,4 +122,4 @@
             </button>
         </div>
     </div>
-</div>
+</Window>
