@@ -2,7 +2,7 @@
     import { onMount } from "svelte";
     import { api, type Notification } from "$lib/api";
     import { formatDate } from "$lib/utils";
-    import { Bell, CheckCircle } from "@lucide/svelte";
+    import { Bell, CircleCheck } from "@lucide/svelte";
 
     let notifications = $state<Notification[]>([]);
     let loading = $state(true);
@@ -26,7 +26,7 @@
     </div>
 {:else if notifications.length === 0}
     <div class="text-center py-8 text-foreground/50">
-        <CheckCircle class="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <CircleCheck class="w-8 h-8 mx-auto mb-2 opacity-50" />
         <p class="text-sm">All caught up!</p>
     </div>
 {:else}
