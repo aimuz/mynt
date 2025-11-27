@@ -275,7 +275,7 @@
     <!-- Context Menu -->
     {#if showContextMenu}
         <div
-            class="fixed glass-strong rounded-lg shadow-xl py-1 min-w-48 z-200 border border-white/20"
+            class="fixed glass-strong rounded-lg shadow-xl py-1 min-w-48 z-200 border border-white/20 overflow-hidden"
             style="left: {contextMenuX}px; top: {contextMenuY}px;"
         >
             <button
