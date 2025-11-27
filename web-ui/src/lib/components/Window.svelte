@@ -78,7 +78,7 @@
 
 <div
     bind:this={windowEl}
-    class="fixed window-shadow rounded-xl overflow-hidden"
+    class="fixed window-shadow rounded-xl overflow-hidden flex flex-col"
     style="
     left: {windowPos.x}px;
     top: {windowPos.y}px;
@@ -92,7 +92,7 @@
     <!-- Window Header -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
-        class="glass-strong h-12 flex items-center justify-between px-4 cursor-move border-b border-white/10"
+        class="glass-strong h-12 flex items-center justify-between px-4 cursor-move border-b border-white/10 shrink-0"
         onmousedown={handleMouseDownDrag}
         role="group"
         aria-label="Window Header"
@@ -124,7 +124,7 @@
     </div>
 
     <!-- Window Content -->
-    <div class="glass h-full overflow-auto">
+    <div class="glass flex-1 overflow-auto">
         {@render children()}
     </div>
 </div>
