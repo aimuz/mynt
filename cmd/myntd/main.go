@@ -109,7 +109,7 @@ func main() {
 	initialized, _ := configRepo.IsInitialized()
 	if !initialized {
 		logger.Warn("system not initialized",
-			"setup_url", "http://localhost:8080/setup.html")
+			"setup_url", "http://localhost:8080/setup")
 	}
 
 	// API Server with authentication

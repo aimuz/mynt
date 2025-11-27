@@ -14,7 +14,7 @@ import (
 	"go.aimuz.me/mynt/store"
 	"go.aimuz.me/mynt/task"
 	"go.aimuz.me/mynt/user"
-	"go.aimuz.me/mynt/web"
+	webui "go.aimuz.me/mynt/web-ui"
 	"go.aimuz.me/mynt/zfs"
 )
 
@@ -61,7 +61,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
 
 	// Static Files (public)
-	s.mux.Handle("/", http.FileServer(http.FS(web.FS)))
+	s.mux.Handle("/", spaHandler(webui.FS, "index.html"))
 
 	// Protected API routes - all require authentication
 	// Apply auth middleware to all /api/v1/ routes except auth
