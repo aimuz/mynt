@@ -99,14 +99,14 @@
 
     function handlePointerMove(e: PointerEvent) {
         if (isDragging) {
-            pendingPos = {
-                x: clamp(e.clientX - dragStart.x, 0, cachedBounds.maxX),
-                y: clamp(e.clientY - dragStart.y, 0, cachedBounds.maxY),
-            };
+            const x = clamp(e.clientX - dragStart.x, 0, cachedBounds.maxX);
+            const y = clamp(e.clientY - dragStart.y, 0, cachedBounds.maxY);
+
+            pendingPos = { x, y };
+
             scheduleUpdate(() => {
-                if (pendingPos) {
-                    windowPos = pendingPos;
-                    pendingPos = null;
+                if (windowEl && pendingPos) {
+                    windowEl.style.transform = `translate(${pendingPos.x}px, ${pendingPos.y}px)`;
                 }
             });
         } else if (isResizing) {
@@ -114,22 +114,24 @@
             const deltaY = e.clientY - resizeStart.y;
             const dir = resizeDirection;
 
-            pendingSize = {
-                width: dir.includes("e")
-                    ? Math.max(minWidth, resizeStart.width + deltaX)
-                    : dir.includes("w")
-                      ? Math.max(minWidth, resizeStart.width - deltaX)
-                      : windowSize.width,
-                height: dir.includes("s")
-                    ? Math.max(minHeight, resizeStart.height + deltaY)
-                    : dir.includes("n")
-                      ? Math.max(minHeight, resizeStart.height - deltaY)
-                      : windowSize.height,
-            };
+            const width = dir.includes("e")
+                ? Math.max(minWidth, resizeStart.width + deltaX)
+                : dir.includes("w")
+                  ? Math.max(minWidth, resizeStart.width - deltaX)
+                  : windowSize.width;
+
+            const height = dir.includes("s")
+                ? Math.max(minHeight, resizeStart.height + deltaY)
+                : dir.includes("n")
+                  ? Math.max(minHeight, resizeStart.height - deltaY)
+                  : windowSize.height;
+
+            pendingSize = { width, height };
+
             scheduleUpdate(() => {
-                if (pendingSize) {
-                    windowSize = pendingSize;
-                    pendingSize = null;
+                if (windowEl && pendingSize) {
+                    windowEl.style.width = `${pendingSize.width}px`;
+                    windowEl.style.height = `${pendingSize.height}px`;
                 }
             });
         }

@@ -1,13 +1,4 @@
 <script lang="ts">
-    import {
-        Database,
-        FolderOpen,
-        HardDrive,
-        Settings,
-        Users,
-        Bell,
-    } from "@lucide/svelte";
-
     export interface DesktopApp {
         id: string;
         name: string;
@@ -32,7 +23,7 @@
                     class="dock-item group relative flex flex-col items-center"
                 >
                     <div
-                        class="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg transition-all"
+                        class="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg"
                         style="background: {app.color};"
                     >
                         <app.icon class="w-8 h-8 text-white" />
@@ -61,7 +52,8 @@
 <style lang="postcss">
     @reference "tailwindcss";
     .dock-item {
-        @apply transition-all duration-200 ease-out;
+        @apply transition-transform duration-200 ease-out;
+        will-change: transform;
     }
 
     .dock-item:hover {
