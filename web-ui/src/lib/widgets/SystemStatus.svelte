@@ -72,7 +72,7 @@
         </div>
         <div class="w-full bg-foreground/10 rounded-full h-1.5 overflow-hidden">
             <div
-                class="bg-gradient-to-r from-blue-500 to-purple-600 h-full transition-all duration-500 rounded-full"
+                class="gradient-to-r from-blue-500 to-purple-600 h-full transition-all duration-500 rounded-full"
                 style="width: {usagePercent}%"
             ></div>
         </div>

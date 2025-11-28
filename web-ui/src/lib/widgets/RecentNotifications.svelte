@@ -36,7 +36,7 @@
                 class="p-2 rounded-lg hover:bg-foreground/5 transition-colors border border-foreground/10"
             >
                 <div class="flex items-start gap-2">
-                    <Bell class="w-3 h-3 text-blue-500 mt-0.5 flex-shrink-0" />
+                    <Bell class="w-3 h-3 text-blue-500 mt-0.5 shrink-0" />
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-medium text-foreground truncate">
                             {notif.type}
