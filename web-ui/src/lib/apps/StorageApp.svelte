@@ -1,0 +1,208 @@
+<script lang="ts">
+    import { onMount, getContext } from "svelte";
+    import { api, type Pool } from "$lib/api";
+    import { formatBytes } from "$lib/utils";
+    import { Database, Plus } from "@lucide/svelte";
+    import CreatePoolWindow from "$lib/apps/CreatePoolWindow.svelte";
+
+    let pools = $state<Pool[]>([]);
+    let loading = $state(true);
+
+    // Get desktop context for window management
+    const desktop = getContext<{
+        openWindow: (
+            id: string,
+            title: string,
+            icon: any,
+            component: any,
+        ) => void;
+        closeWindow: (id: string) => void;
+    }>("desktop");
+
+    onMount(() => {
+        loadData();
+        const interval = setInterval(loadData, 30000);
+        return () => clearInterval(interval);
+    });
+
+    async function loadData() {
+        try {
+            pools = await api.listPools().catch(() => []);
+            loading = false;
+        } catch (err) {
+            console.error("Failed to load data:", err);
+            loading = false;
+        }
+    }
+
+    function handleCreatePool() {
+        // Open CreatePoolWindow at desktop level with refresh callback
+        desktop.openWindow(
+            "create-pool",
+            "Create Storage Pool",
+            Database,
+            () => ({
+                component: CreatePoolWindow,
+                props: { onRefreshStorage: loadData },
+            }),
+        );
+    }
+
+    function getHealthBadgeColor(health: string): string {
+        switch (health.toUpperCase()) {
+            case "ONLINE":
+                return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+            case "DEGRADED":
+                return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+            case "OFFLINE":
+            case "UNAVAIL":
+            case "FAULTED":
+                return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+            default:
+                return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400";
+        }
+    }
+</script>
+
+<div class="p-6 h-full overflow-auto">
+    {#if loading}
+        <div class="flex items-center justify-center h-64">
+            <div
+                class="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"
+            ></div>
+        </div>
+    {:else}
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h2 class="text-2xl font-bold text-foreground">
+                    Storage Pools
+                </h2>
+                <p class="text-sm text-muted-foreground mt-1">
+                    Manage your ZFS storage pools
+                </p>
+            </div>
+            <button
+                onclick={handleCreatePool}
+                class="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-all shadow-lg hover:shadow-xl"
+            >
+                <Plus class="w-4 h-4" />
+                Create Pool
+            </button>
+        </div>
+
+        <!-- Pools Grid -->
+        {#if pools.length === 0}
+            <div class="glass-card rounded-xl p-12 text-center fade-in">
+                <Database
+                    class="w-16 h-16 mx-auto mb-4 opacity-50 text-muted-foreground"
+                />
+                <h3 class="text-lg font-semibold text-foreground mb-2">
+                    No Storage Pools
+                </h3>
+                <p class="text-sm text-muted-foreground mb-6">
+                    Create your first storage pool to get started
+                </p>
+                <button
+                    onclick={handleCreatePool}
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-all"
+                >
+                    <Plus class="w-4 h-4" />
+                    Create Pool
+                </button>
+            </div>
+        {:else}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {#each pools as pool, i}
+                    <div
+                        class="glass-card rounded-xl p-6 fade-in hover:bg-white/5 transition-all"
+                        style="animation-delay: {i * 50}ms;"
+                    >
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-12 h-12 rounded-xl bg-linear-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg"
+                                >
+                                    <Database class="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3
+                                        class="font-semibold text-lg text-foreground"
+                                    >
+                                        {pool.name}
+                                    </h3>
+                                    <span
+                                        class="text-xs px-2 py-0.5 rounded-full {getHealthBadgeColor(
+                                            pool.health,
+                                        )}"
+                                    >
+                                        {pool.health}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Capacity Bar -->
+                        <div class="mb-3">
+                            <div
+                                class="flex justify-between text-xs text-muted-foreground mb-1"
+                            >
+                                <span>Capacity</span>
+                                <span
+                                    >{(
+                                        (pool.allocated / pool.size) *
+                                        100
+                                    ).toFixed(1)}%</span
+                                >
+                            </div>
+                            <div class="w-full bg-muted rounded-full h-2">
+                                <div
+                                    class="bg-linear-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all"
+                                    style="width: {(pool.allocated /
+                                        pool.size) *
+                                        100}%"
+                                ></div>
+                            </div>
+                        </div>
+
+                        <!-- Stats -->
+                        <div
+                            class="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border/50"
+                        >
+                            <div>
+                                <p class="text-xs text-muted-foreground">
+                                    Total
+                                </p>
+                                <p
+                                    class="text-sm font-semibold text-foreground mt-0.5"
+                                >
+                                    {formatBytes(pool.size)}
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-muted-foreground">
+                                    Used
+                                </p>
+                                <p
+                                    class="text-sm font-semibold text-foreground mt-0.5"
+                                >
+                                    {formatBytes(pool.allocated)}
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-muted-foreground">
+                                    Free
+                                </p>
+                                <p
+                                    class="text-sm font-semibold text-foreground mt-0.5"
+                                >
+                                    {formatBytes(pool.free)}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                {/each}
+            </div>
+        {/if}
+    {/if}
+</div>

@@ -8,10 +8,12 @@
         Bell,
         Activity,
     } from "@lucide/svelte";
+    import { setContext } from "svelte";
     import Dock, { type DesktopApp } from "$lib/components/Dock.svelte";
     import Window from "$lib/components/Window.svelte";
     import Widget from "$lib/components/Widget.svelte";
     import DashboardApp from "$lib/apps/DashboardApp.svelte";
+    import StorageApp from "$lib/apps/StorageApp.svelte";
     import SystemStatus from "$lib/widgets/SystemStatus.svelte";
     import Clock from "$lib/widgets/Clock.svelte";
     import RecentNotifications from "$lib/widgets/RecentNotifications.svelte";
@@ -29,7 +31,13 @@
     });
 
     let activeWindows = $state<
-        Array<{ id: string; title: string; icon: any; component: any }>
+        Array<{
+            id: string;
+            title: string;
+            icon: any;
+            component: any;
+            props?: any;
+        }>
     >([]);
     let currentTime = $state(new Date());
     let showContextMenu = $state(false);
@@ -57,7 +65,7 @@
             icon: Database,
             color: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
             onClick: () =>
-                openWindow("storage", "Storage Manager", Database, null),
+                openWindow("storage", "Storage Manager", Database, StorageApp),
         },
         {
             id: "shares",
@@ -90,16 +98,54 @@
         },
     ];
 
-    function openWindow(id: string, title: string, icon: any, component: any) {
+    function openWindow(
+        id: string,
+        title: string,
+        icon: any,
+        component: any | (() => { component: any; props?: any }),
+    ) {
         // Check if window is already open
         if (activeWindows.some((w) => w.id === id)) return;
 
+        // Check if component is a factory function
+        if (typeof component === "function" && component.length === 0) {
+            try {
+                const result = component();
+                if (
+                    result &&
+                    typeof result === "object" &&
+                    "component" in result
+                ) {
+                    activeWindows = [
+                        ...activeWindows,
+                        {
+                            id,
+                            title,
+                            icon,
+                            component: result.component,
+                            props: result.props,
+                        },
+                    ];
+                    return;
+                }
+            } catch (e) {
+                // Not a factory, fall through to direct component
+            }
+        }
+
+        // Direct component
         activeWindows = [...activeWindows, { id, title, icon, component }];
     }
 
     function closeWindow(id: string) {
         activeWindows = activeWindows.filter((w) => w.id !== id);
     }
+
+    // Expose window management to child components via context
+    setContext("desktop", {
+        openWindow,
+        closeWindow,
+    });
 
     function handleLogout() {
         api.logout();
@@ -251,7 +297,11 @@
         >
             {#snippet children()}
                 {#if window.component}
-                    <window.component />
+                    {#if window.props}
+                        <window.component {...window.props} />
+                    {:else}
+                        <window.component />
+                    {/if}
                 {:else}
                     <div class="flex items-center justify-center h-full">
                         <div class="text-center text-muted-foreground">
