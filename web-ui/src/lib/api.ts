@@ -6,7 +6,15 @@ interface User {
     username: string;
     full_name?: string;
     email?: string;
+    account_type: 'system' | 'virtual';
     is_admin: boolean;
+    is_active: boolean;
+    home_dir?: string;
+    shell?: string;
+    uid?: number;
+    gid?: number;
+    created_at: string;
+    last_login?: string;
 }
 
 interface Pool {
@@ -187,6 +195,31 @@ class ApiClient {
     async markNotificationRead(id: number) {
         return this.request(`/notifications/${id}/read`, {
             method: 'POST',
+        });
+    }
+
+    // Users
+    async listUsers(): Promise<User[]> {
+        return this.request('/users');
+    }
+
+    async createUser(data: {
+        username: string;
+        password: string;
+        full_name?: string;
+        email?: string;
+        account_type?: 'system' | 'virtual';
+        is_admin?: boolean;
+    }): Promise<User> {
+        return this.request('/users', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async deleteUser(username: string): Promise<void> {
+        return this.request(`/users/${username}`, {
+            method: 'DELETE',
         });
     }
 }
