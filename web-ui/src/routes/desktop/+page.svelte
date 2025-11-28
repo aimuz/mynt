@@ -92,8 +92,17 @@
             name: "Shares",
             icon: FolderOpen,
             color: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-            onClick: () =>
-                openWindow("shares", "File Shares", FolderOpen, null),
+            onClick: async () => {
+                const module = await import(
+                    "$lib/apps/ShareManagementApp.svelte"
+                );
+                openWindow(
+                    "shares",
+                    "Share Management",
+                    FolderOpen,
+                    module.default,
+                );
+            },
         },
         {
             id: "disks",
