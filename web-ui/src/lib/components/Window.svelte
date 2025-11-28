@@ -36,40 +36,44 @@
     let windowSize = $state({ width, height });
     let resizeStart = $state({ x: 0, y: 0, width: 0, height: 0 });
 
-    // 性能优化:缓存边界值和RAF ID
     let rafId: number | null = null;
     let cachedBounds = { maxX: 0, maxY: 0 };
-    let pendingPosUpdate: { x: number; y: number } | null = null;
-    let pendingSizeUpdate: { width: number; height: number } | null = null;
+    let pendingPos: { x: number; y: number } | null = null;
+    let pendingSize: { width: number; height: number } | null = null;
 
-    // 性能优化:使用被动事件监听器选项
-    const passiveListener = { passive: true };
+    const clamp = (val: number, min: number, max: number) =>
+        Math.max(min, Math.min(val, max));
 
-    function updateBoundsCache() {
+    const scheduleUpdate = (update: () => void) => {
+        if (rafId === null) {
+            rafId = requestAnimationFrame(() => {
+                update();
+                rafId = null;
+            });
+        }
+    };
+
+    const addListeners = () => {
+        document.addEventListener("pointermove", handlePointerMove);
+        document.addEventListener("pointerup", handlePointerUp);
+    };
+
+    const removeListeners = () => {
+        document.removeEventListener("pointermove", handlePointerMove);
+        document.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    function handlePointerDownDrag(e: PointerEvent) {
+        if ((e.target as HTMLElement).closest(".window-controls")) return;
+        e.preventDefault();
+
+        isDragging = true;
+        dragStart = { x: e.clientX - windowPos.x, y: e.clientY - windowPos.y };
         cachedBounds = {
             maxX: window.innerWidth - 100,
             maxY: window.innerHeight - 100,
         };
-    }
-
-    function handlePointerDownDrag(e: PointerEvent) {
-        if ((e.target as HTMLElement).closest(".window-controls")) return;
-
-        // 防止默认行为,避免文本选择
-        e.preventDefault();
-
-        isDragging = true;
-        dragStart = {
-            x: e.clientX - windowPos.x,
-            y: e.clientY - windowPos.y,
-        };
-
-        // 缓存边界值
-        updateBoundsCache();
-
-        // 只在开始拖拽时添加事件监听器
-        document.addEventListener("pointermove", handlePointerMove);
-        document.addEventListener("pointerup", handlePointerUp);
+        addListeners();
     }
 
     function handlePointerDownResize(e: PointerEvent, direction: string) {
@@ -84,66 +88,44 @@
             width: windowSize.width,
             height: windowSize.height,
         };
-
-        document.addEventListener("pointermove", handlePointerMove);
-        document.addEventListener("pointerup", handlePointerUp);
+        addListeners();
     }
 
     function handlePointerMove(e: PointerEvent) {
         if (isDragging) {
-            // 计算新位置
-            const newX = Math.max(
-                0,
-                Math.min(e.clientX - dragStart.x, cachedBounds.maxX),
-            );
-            const newY = Math.max(
-                0,
-                Math.min(e.clientY - dragStart.y, cachedBounds.maxY),
-            );
-
-            // 使用 requestAnimationFrame 节流更新
-            pendingPosUpdate = { x: newX, y: newY };
-
-            if (rafId === null) {
-                rafId = requestAnimationFrame(() => {
-                    if (pendingPosUpdate) {
-                        windowPos = pendingPosUpdate;
-                        pendingPosUpdate = null;
-                    }
-                    rafId = null;
-                });
-            }
+            pendingPos = {
+                x: clamp(e.clientX - dragStart.x, 0, cachedBounds.maxX),
+                y: clamp(e.clientY - dragStart.y, 0, cachedBounds.maxY),
+            };
+            scheduleUpdate(() => {
+                if (pendingPos) {
+                    windowPos = pendingPos;
+                    pendingPos = null;
+                }
+            });
         } else if (isResizing) {
             const deltaX = e.clientX - resizeStart.x;
             const deltaY = e.clientY - resizeStart.y;
+            const dir = resizeDirection;
 
-            let newWidth = windowSize.width;
-            let newHeight = windowSize.height;
-
-            if (resizeDirection.includes("e")) {
-                newWidth = Math.max(minWidth, resizeStart.width + deltaX);
-            }
-            if (resizeDirection.includes("s")) {
-                newHeight = Math.max(minHeight, resizeStart.height + deltaY);
-            }
-            if (resizeDirection.includes("w")) {
-                newWidth = Math.max(minWidth, resizeStart.width - deltaX);
-            }
-            if (resizeDirection.includes("n")) {
-                newHeight = Math.max(minHeight, resizeStart.height - deltaY);
-            }
-
-            pendingSizeUpdate = { width: newWidth, height: newHeight };
-
-            if (rafId === null) {
-                rafId = requestAnimationFrame(() => {
-                    if (pendingSizeUpdate) {
-                        windowSize = pendingSizeUpdate;
-                        pendingSizeUpdate = null;
-                    }
-                    rafId = null;
-                });
-            }
+            pendingSize = {
+                width: dir.includes("e")
+                    ? Math.max(minWidth, resizeStart.width + deltaX)
+                    : dir.includes("w")
+                      ? Math.max(minWidth, resizeStart.width - deltaX)
+                      : windowSize.width,
+                height: dir.includes("s")
+                    ? Math.max(minHeight, resizeStart.height + deltaY)
+                    : dir.includes("n")
+                      ? Math.max(minHeight, resizeStart.height - deltaY)
+                      : windowSize.height,
+            };
+            scheduleUpdate(() => {
+                if (pendingSize) {
+                    windowSize = pendingSize;
+                    pendingSize = null;
+                }
+            });
         }
     }
 
@@ -152,25 +134,21 @@
         isResizing = false;
         resizeDirection = "";
 
-        // 取消待处理的RAF
         if (rafId !== null) {
             cancelAnimationFrame(rafId);
             rafId = null;
         }
 
-        // 应用最后的更新
-        if (pendingPosUpdate) {
-            windowPos = pendingPosUpdate;
-            pendingPosUpdate = null;
+        if (pendingPos) {
+            windowPos = pendingPos;
+            pendingPos = null;
         }
-        if (pendingSizeUpdate) {
-            windowSize = pendingSizeUpdate;
-            pendingSizeUpdate = null;
+        if (pendingSize) {
+            windowSize = pendingSize;
+            pendingSize = null;
         }
 
-        // 移除事件监听器
-        document.removeEventListener("pointermove", handlePointerMove);
-        document.removeEventListener("pointerup", handlePointerUp);
+        removeListeners();
     }
 </script>
 
@@ -256,13 +234,11 @@
 </div>
 
 <style>
-    /* 性能优化:使用硬件加速 */
     div[style*="transform"] {
         transform: translate3d(0, 0, 0);
         backface-visibility: hidden;
     }
 
-    /* 拖拽时禁用过渡效果,提升性能 */
     .dragging,
     .resizing {
         transition: none !important;
@@ -270,7 +246,6 @@
         pointer-events: auto;
     }
 
-    /* 调整大小手柄在非hover状态下透明 */
     div[role="button"][aria-label*="Resize"] {
         opacity: 0;
         transition: opacity 0.2s;
@@ -280,7 +255,6 @@
         opacity: 1;
     }
 
-    /* 性能优化:避免重排 */
     .window-shadow {
         contain: layout style paint;
     }
