@@ -108,17 +108,20 @@
         <!-- Window Controls (macOS style) -->
         <div class="window-controls flex items-center gap-2">
             <button
-                class="w-3 h-3 rounded-full bg-yellow-400 hover:bg-yellow-500 transition-colors"
+                class="w-3 h-3 rounded-full bg-yellow-400 hover:bg-yellow-500 transition-colors border-0 outline-none shadow-none"
                 title="Minimize"
+                aria-label="Minimize Window"
             ></button>
             <button
-                class="w-3 h-3 rounded-full bg-green-400 hover:bg-green-500 transition-colors"
+                class="w-3 h-3 rounded-full bg-green-400 hover:bg-green-500 transition-colors border-0 outline-none shadow-none"
                 title="Maximize"
+                aria-label="Maximize Window"
             ></button>
             <button
                 onclick={onClose}
-                class="w-3 h-3 rounded-full bg-red-400 hover:bg-red-500 transition-colors"
+                class="w-3 h-3 rounded-full bg-red-400 hover:bg-red-500 transition-colors border-0 outline-none shadow-none"
                 title="Close"
+                aria-label="Close Window"
             ></button>
         </div>
     </div>
