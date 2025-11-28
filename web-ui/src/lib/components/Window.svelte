@@ -10,7 +10,9 @@
         height?: number;
         minWidth?: number;
         minHeight?: number;
+        zIndex?: number;
         onClose?: () => void;
+        onFocus?: () => void;
     }
 
     let {
@@ -24,7 +26,9 @@
         height = 600,
         minWidth = 400,
         minHeight = 300,
+        zIndex = 100,
         onClose,
+        onFocus,
     }: WindowProps = $props();
 
     let windowEl: HTMLDivElement;
@@ -67,6 +71,7 @@
         if ((e.target as HTMLElement).closest(".window-controls")) return;
         e.preventDefault();
 
+        onFocus?.();
         isDragging = true;
         dragStart = { x: e.clientX - windowPos.x, y: e.clientY - windowPos.y };
         cachedBounds = {
@@ -80,6 +85,7 @@
         e.preventDefault();
         e.stopPropagation();
 
+        onFocus?.();
         isResizing = true;
         resizeDirection = direction;
         resizeStart = {
@@ -155,6 +161,7 @@
 <div
     bind:this={windowEl}
     class="fixed window-shadow rounded-xl overflow-hidden flex flex-col"
+    onpointerdown={() => onFocus?.()}
     style:left="0"
     style:top="0"
     style:transform="translate({windowPos.x}px, {windowPos.y}px)"
@@ -162,7 +169,7 @@
     style:height="{windowSize.height}px"
     style:min-width="{minWidth}px"
     style:min-height="{minHeight}px"
-    style:z-index="100"
+    style:z-index={zIndex}
     style:will-change={isDragging || isResizing ? "transform" : "auto"}
     class:dragging={isDragging}
     class:resizing={isResizing}
