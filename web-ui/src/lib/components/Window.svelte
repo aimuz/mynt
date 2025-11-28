@@ -79,15 +79,13 @@
 <div
     bind:this={windowEl}
     class="fixed window-shadow rounded-xl overflow-hidden flex flex-col"
-    style="
-    left: {windowPos.x}px;
-    top: {windowPos.y}px;
-    width: {windowSize.width}px;
-    height: {windowSize.height}px;
-    min-width: {minWidth}px;
-    min-height: {minHeight}px;
-    z-index: 100;
-  "
+    style:left="{windowPos.x}px"
+    style:top="{windowPos.y}px"
+    style:width="{windowSize.width}px"
+    style:height="{windowSize.height}px"
+    style:min-width="{minWidth}px"
+    style:min-height="{minHeight}px"
+    style:z-index="100"
 >
     <!-- Window Header -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
