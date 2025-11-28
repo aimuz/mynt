@@ -107,7 +107,12 @@
             name: "Users",
             icon: Users,
             color: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-            onClick: () => openWindow("users", "User Management", Users, null),
+            onClick: async () => {
+                const module = await import(
+                    "$lib/apps/UserManagementApp.svelte"
+                );
+                openWindow("users", "User Management", Users, module.default);
+            },
         },
         {
             id: "settings",
