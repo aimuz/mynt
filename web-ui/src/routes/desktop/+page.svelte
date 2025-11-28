@@ -37,6 +37,7 @@
             icon: any;
             component: any;
             props?: any;
+            zIndex: number;
         }>
     >([]);
     let currentTime = $state(new Date());
@@ -44,6 +45,7 @@
     let contextMenuX = $state(0);
     let contextMenuY = $state(0);
     let showWallpaperSelector = $state(false);
+    let nextZIndex = $state(100);
 
     // Update time every second
     setInterval(() => {
@@ -98,6 +100,24 @@
         },
     ];
 
+    function bringToFront(id: string) {
+        const window = activeWindows.find((w) => w.id === id);
+        if (window) {
+            // Find the highest z-index among other windows
+            const otherWindows = activeWindows.filter((w) => w.id !== id);
+            const maxZ = otherWindows.reduce(
+                (max, w) => Math.max(max, w.zIndex),
+                99,
+            );
+
+            // Only update if not already on top
+            if (window.zIndex <= maxZ) {
+                window.zIndex = maxZ + 1;
+                nextZIndex = maxZ + 2;
+            }
+        }
+    }
+
     function openWindow(
         id: string,
         title: string,
@@ -105,7 +125,13 @@
         component: any | (() => { component: any; props?: any }),
     ) {
         // Check if window is already open
-        if (activeWindows.some((w) => w.id === id)) return;
+        const existingWindow = activeWindows.find((w) => w.id === id);
+        if (existingWindow) {
+            bringToFront(id);
+            return;
+        }
+
+        const zIndex = nextZIndex++;
 
         // Check if component is a factory function
         if (typeof component === "function" && component.length === 0) {
@@ -124,6 +150,7 @@
                             icon,
                             component: result.component,
                             props: result.props,
+                            zIndex,
                         },
                     ];
                     return;
@@ -134,7 +161,10 @@
         }
 
         // Direct component
-        activeWindows = [...activeWindows, { id, title, icon, component }];
+        activeWindows = [
+            ...activeWindows,
+            { id, title, icon, component, zIndex },
+        ];
     }
 
     function closeWindow(id: string) {
@@ -291,7 +321,9 @@
             id={window.id}
             title={window.title}
             icon={window.icon}
+            zIndex={window.zIndex}
             onClose={() => closeWindow(window.id)}
+            onFocus={() => bringToFront(window.id)}
             x={100 + activeWindows.indexOf(window) * 30}
             y={100 + activeWindows.indexOf(window) * 30}
         >
