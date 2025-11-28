@@ -144,10 +144,10 @@ class ApiClient {
         return this.request('/pools');
     }
 
-    async createPool(name: string, raid: string, disks: string[]) {
+    async createPool(name: string, devices: string[], type: string) {
         return this.request('/pools', {
             method: 'POST',
-            body: JSON.stringify({ name, raid, disks }),
+            body: JSON.stringify({ name, devices, type }),
         });
     }
 
