@@ -12,8 +12,9 @@
     import Dock, { type DesktopApp } from "$lib/components/Dock.svelte";
     import Window from "$lib/components/Window.svelte";
     import Widget from "$lib/components/Widget.svelte";
-    import DashboardApp from "$lib/apps/DashboardApp.svelte";
-    import StorageApp from "$lib/apps/StorageApp.svelte";
+    // Apps are now lazy loaded
+    // import DashboardApp from "$lib/apps/DashboardApp.svelte";
+    // import StorageApp from "$lib/apps/StorageApp.svelte";
     import SystemStatus from "$lib/widgets/SystemStatus.svelte";
     import Clock from "$lib/widgets/Clock.svelte";
     import RecentNotifications from "$lib/widgets/RecentNotifications.svelte";
@@ -38,6 +39,8 @@
             component: any;
             props?: any;
             zIndex: number;
+            x: number;
+            y: number;
         }>
     >([]);
     let currentTime = $state(new Date());
@@ -48,9 +51,15 @@
     let nextZIndex = $state(100);
 
     // Update time every second
-    setInterval(() => {
-        currentTime = new Date();
-    }, 1000);
+    onMount(() => {
+        const interval = setInterval(() => {
+            currentTime = new Date();
+        }, 1000);
+
+        return () => {
+            clearInterval(interval);
+        };
+    });
 
     const apps: DesktopApp[] = [
         {
@@ -58,16 +67,25 @@
             name: "Dashboard",
             icon: Activity,
             color: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            onClick: () =>
-                openWindow("dashboard", "Dashboard", Activity, DashboardApp),
+            onClick: async () => {
+                const module = await import("$lib/apps/DashboardApp.svelte");
+                openWindow("dashboard", "Dashboard", Activity, module.default);
+            },
         },
         {
             id: "storage",
             name: "Storage",
             icon: Database,
             color: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-            onClick: () =>
-                openWindow("storage", "Storage Manager", Database, StorageApp),
+            onClick: async () => {
+                const module = await import("$lib/apps/StorageApp.svelte");
+                openWindow(
+                    "storage",
+                    "Storage Manager",
+                    Database,
+                    module.default,
+                );
+            },
         },
         {
             id: "shares",
@@ -103,17 +121,10 @@
     function bringToFront(id: string) {
         const window = activeWindows.find((w) => w.id === id);
         if (window) {
-            // Find the highest z-index among other windows
-            const otherWindows = activeWindows.filter((w) => w.id !== id);
-            const maxZ = otherWindows.reduce(
-                (max, w) => Math.max(max, w.zIndex),
-                99,
-            );
-
+            // Optimization: O(1) update instead of O(N) search
             // Only update if not already on top
-            if (window.zIndex <= maxZ) {
-                window.zIndex = maxZ + 1;
-                nextZIndex = maxZ + 2;
+            if (window.zIndex < nextZIndex - 1) {
+                window.zIndex = nextZIndex++;
             }
         }
     }
@@ -142,6 +153,11 @@
                     typeof result === "object" &&
                     "component" in result
                 ) {
+                    // Calculate position
+                    const offset = activeWindows.length * 30;
+                    const x = 100 + offset;
+                    const y = 100 + offset;
+
                     activeWindows = [
                         ...activeWindows,
                         {
@@ -151,6 +167,8 @@
                             component: result.component,
                             props: result.props,
                             zIndex,
+                            x,
+                            y,
                         },
                     ];
                     return;
@@ -160,10 +178,17 @@
             }
         }
 
+        // Calculate position based on existing windows to cascade them
+        // We use a simple offset based on the number of active windows
+        // This is calculated ONCE when the window opens, so it doesn't shift when others close
+        const offset = activeWindows.length * 30;
+        const x = 100 + offset;
+        const y = 100 + offset;
+
         // Direct component
         activeWindows = [
             ...activeWindows,
-            { id, title, icon, component, zIndex },
+            { id, title, icon, component, zIndex, x, y },
         ];
     }
 
@@ -324,8 +349,8 @@
             zIndex={window.zIndex}
             onClose={() => closeWindow(window.id)}
             onFocus={() => bringToFront(window.id)}
-            x={100 + activeWindows.indexOf(window) * 30}
-            y={100 + activeWindows.indexOf(window) * 30}
+            x={window.x}
+            y={window.y}
         >
             {#snippet children()}
                 {#if window.component}
