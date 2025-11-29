@@ -53,15 +53,15 @@ func NewServer(zfs *zfs.Manager, bus *event.Bus, tm *task.Manager, sm *share.Man
 }
 
 func (s *Server) routes() {
+	// Static Files (public)
+	s.mux.Handle("/", spaHandler(webui.FS, "index.html"))
+
 	// Setup route (only available if not initialized)
 	s.mux.HandleFunc("POST /api/v1/setup", s.handleSetup)
 	s.mux.HandleFunc("GET /api/v1/setup/status", s.handleSetupStatus)
 
 	// Public routes (no auth required)
 	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
-
-	// Static Files (public)
-	s.mux.Handle("/", spaHandler(webui.FS, "index.html"))
 
 	// Protected API routes - all require authentication
 	// Apply auth middleware to all /api/v1/ routes except auth
@@ -98,14 +98,14 @@ func (s *Server) routes() {
 // protected wraps a handler with authentication requirement.
 func (s *Server) protected(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		s.authMw.RequireAuth(http.HandlerFunc(handler)).ServeHTTP(w, r)
+		s.authMw.RequireAuth(handler).ServeHTTP(w, r)
 	}
 }
 
 // adminOnly wraps a handler with admin authentication requirement.
 func (s *Server) adminOnly(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		s.authMw.RequireAuth(s.authMw.RequireAdmin(http.HandlerFunc(handler))).ServeHTTP(w, r)
+		s.authMw.RequireAuth(s.authMw.RequireAdmin(handler)).ServeHTTP(w, r)
 	}
 }
 
