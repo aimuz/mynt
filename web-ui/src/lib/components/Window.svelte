@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { CircleAlert, RotateCw } from "@lucide/svelte";
+
     interface WindowProps {
         id: string;
         title: string;
@@ -158,6 +160,10 @@
 
         removeListeners();
     }
+
+    function handleError(error: unknown, reset: () => void) {
+        console.error(`[Window: ${title}] Error caught:`, error);
+    }
 </script>
 
 <div
@@ -215,7 +221,45 @@
 
     <!-- Window Content -->
     <div class="glass flex-1 overflow-auto">
-        {@render children()}
+        <svelte:boundary onerror={handleError}>
+            {@render children()}
+            {#snippet failed(error, reset)}
+                <div
+                    class="flex flex-col items-center justify-center h-full text-center p-6"
+                >
+                    <CircleAlert class="w-12 h-12 text-red-400 mb-4" />
+                    <h3 class="text-lg font-semibold text-foreground mb-2">
+                        Application Error
+                    </h3>
+                    <p class="text-sm text-foreground/70 mb-1">
+                        Something went wrong in this window
+                    </p>
+                    <p
+                        class="text-xs text-foreground/50 mb-6 max-w-md break-all bg-black/10 p-2 rounded-md font-mono"
+                        title={error instanceof Error
+                            ? error.message
+                            : String(error)}
+                    >
+                        {error instanceof Error ? error.message : String(error)}
+                    </p>
+                    <div class="flex gap-3">
+                        <button
+                            onclick={onClose}
+                            class="px-4 py-2 text-sm text-foreground/70 hover:text-foreground transition-colors"
+                        >
+                            Close
+                        </button>
+                        <button
+                            onclick={reset}
+                            class="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-all shadow-lg"
+                        >
+                            <RotateCw class="w-4 h-4" />
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            {/snippet}
+        </svelte:boundary>
     </div>
 
     <!-- Resize Handles -->
