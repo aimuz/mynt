@@ -282,10 +282,10 @@
         </div>
 
         <!-- Account Type -->
-        <div>
-            <label class="block text-sm font-medium text-foreground mb-2">
+        <fieldset>
+            <legend class="block text-sm font-medium text-foreground mb-2">
                 Account Type
-            </label>
+            </legend>
             <div class="flex gap-3">
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input
@@ -312,7 +312,7 @@
                     >
                 </label>
             </div>
-        </div>
+        </fieldset>
 
         <!-- Is Admin -->
         <div class="flex items-center gap-2">

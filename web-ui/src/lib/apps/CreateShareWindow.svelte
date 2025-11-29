@@ -130,10 +130,10 @@
         </div>
 
         <!-- Protocol -->
-        <div>
-            <label class="block text-sm font-medium text-foreground mb-2">
+        <fieldset>
+            <legend class="block text-sm font-medium text-foreground mb-2">
                 Protocol
-            </label>
+            </legend>
             <div class="flex gap-3">
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input
@@ -160,13 +160,13 @@
                     >
                 </label>
             </div>
-        </div>
+        </fieldset>
 
         <!-- Share Type -->
-        <div>
-            <label class="block text-sm font-medium text-foreground mb-2">
+        <fieldset>
+            <legend class="block text-sm font-medium text-foreground mb-2">
                 Share Type
-            </label>
+            </legend>
             <div class="flex gap-3">
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input
@@ -196,13 +196,13 @@
                     <span class="text-sm text-foreground">Restricted</span>
                 </label>
             </div>
-        </div>
+        </fieldset>
 
         <!-- Permissions -->
-        <div class="space-y-2">
-            <label class="block text-sm font-medium text-foreground mb-2">
+        <fieldset class="space-y-2">
+            <legend class="block text-sm font-medium text-foreground mb-2">
                 Permissions
-            </label>
+            </legend>
             <div class="flex items-center gap-2">
                 <input
                     id="readOnly"
@@ -245,7 +245,7 @@
                     Allow guest access
                 </label>
             </div>
-        </div>
+        </fieldset>
 
         <!-- Valid Users -->
         <div>
