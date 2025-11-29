@@ -169,11 +169,13 @@
         <!-- Pool Name -->
         <div class="mb-6">
             <label
+                for="poolName"
                 class="block text-sm font-semibold dark:text-white text-gray-900 mb-2"
             >
                 Pool Name
             </label>
             <input
+                id="poolName"
                 type="text"
                 bind:value={poolName}
                 placeholder="e.g., tank, storage, backup"
@@ -185,12 +187,12 @@
         </div>
 
         <!-- RAID Type -->
-        <div class="mb-6">
-            <label
+        <fieldset class="mb-6">
+            <legend
                 class="block text-sm font-semibold dark:text-white text-gray-900 mb-3"
             >
                 RAID Type
-            </label>
+            </legend>
             <div class="grid grid-cols-2 gap-3">
                 {#each raidTypes as raid}
                     <button
@@ -218,15 +220,15 @@
                     </button>
                 {/each}
             </div>
-        </div>
+        </fieldset>
 
         <!-- Disk Selection -->
-        <div class="mb-6">
-            <label
+        <fieldset class="mb-6">
+            <legend
                 class="block text-sm font-semibold dark:text-white text-gray-900 mb-3"
             >
                 Select Disks ({selectedDisks.length} selected)
-            </label>
+            </legend>
             {#if disks.length === 0}
                 <div
                     class="p-8 rounded-lg border-2 border-dashed dark:border-gray-700 border-gray-300 text-center"
@@ -287,7 +289,7 @@
                     {/each}
                 </div>
             {/if}
-        </div>
+        </fieldset>
 
         <!-- Footer Buttons -->
         <div
