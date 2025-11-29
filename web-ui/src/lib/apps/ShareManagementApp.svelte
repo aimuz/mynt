@@ -150,6 +150,7 @@
         {:else}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {#each shares as share, i}
+                    {@const SvelteComponent = getShareIcon(share.share_type)}
                     <div
                         class="glass-card rounded-xl p-6 fade-in hover:bg-white/5 transition-all"
                         style="animation-delay: {i * 50}ms;"
@@ -159,8 +160,7 @@
                                 <div
                                     class="w-12 h-12 rounded-xl bg-linear-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg"
                                 >
-                                    <svelte:component
-                                        this={getShareIcon(share.share_type)}
+                                    <SvelteComponent
                                         class="w-6 h-6 text-white"
                                     />
                                 </div>
