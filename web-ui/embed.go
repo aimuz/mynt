@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed build/*
+//go:embed all:build/*
 var static embed.FS
 
 var FS, _ = fs.Sub(static, "build")
