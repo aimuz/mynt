@@ -82,7 +82,7 @@ func (m *MockExecutor) Output(ctx context.Context, name string, args ...string) 
 	if output != nil {
 		return output, nil
 	}
-	return []byte(fmt.Sprintf("mock output for %s", name)), nil
+	return fmt.Appendf(nil, "mock output for %s", name), nil
 }
 
 // CombinedOutput returns mock combined output for a command.
