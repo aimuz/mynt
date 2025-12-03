@@ -123,8 +123,7 @@ func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{
+	respondJSON(w, http.StatusOK, map[string]bool{
 		"initialized": initialized,
 	})
 }
@@ -174,9 +173,8 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return token and user
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{
+	// Return token and user
+	respondJSON(w, http.StatusCreated, map[string]any{
 		"token": token,
 		"user":  admin,
 	})
@@ -210,8 +208,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return token and user info
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	// Return token and user info
+	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"token": token,
 		"user":  user,
 	})
@@ -226,8 +224,7 @@ func (s *Server) handleListDisks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(disks)
+	respondJSON(w, http.StatusOK, disks)
 }
 
 func (s *Server) handleDiskSmart(w http.ResponseWriter, r *http.Request) {
@@ -243,8 +240,7 @@ func (s *Server) handleDiskSmart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(report)
+	respondJSON(w, http.StatusOK, report)
 }
 
 func (s *Server) handleListPools(w http.ResponseWriter, r *http.Request) {
@@ -254,8 +250,7 @@ func (s *Server) handleListPools(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(pools)
+	respondJSON(w, http.StatusOK, pools)
 }
 
 func (s *Server) handleCreatePool(w http.ResponseWriter, r *http.Request) {
@@ -285,8 +280,7 @@ func (s *Server) handleListDatasets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(datasets)
+	respondJSON(w, http.StatusOK, datasets)
 }
 
 func (s *Server) handleCreateDataset(w http.ResponseWriter, r *http.Request) {
@@ -317,8 +311,7 @@ func (s *Server) handleGetDataset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(dataset)
+	respondJSON(w, http.StatusOK, dataset)
 }
 
 func (s *Server) handleDestroyDataset(w http.ResponseWriter, r *http.Request) {
@@ -347,8 +340,7 @@ func (s *Server) handleListShares(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(shares)
+	respondJSON(w, http.StatusOK, shares)
 }
 
 func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
@@ -368,9 +360,7 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(share)
+	respondJSON(w, http.StatusCreated, share)
 }
 
 func (s *Server) handleDeleteShare(w http.ResponseWriter, r *http.Request) {
@@ -397,8 +387,7 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	respondJSON(w, http.StatusOK, users)
 }
 
 func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
@@ -414,9 +403,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	respondJSON(w, http.StatusCreated, user)
 }
 
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -454,8 +441,7 @@ func (s *Server) handleListNotifications(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(notifications)
+	respondJSON(w, http.StatusOK, notifications)
 }
 
 // handleMarkRead marks a notification as read.
@@ -512,8 +498,7 @@ func (s *Server) handleCountNotifications(w http.ResponseWriter, r *http.Request
 	read, _ := s.notification.Count(store.NotificationRead)
 	acked, _ := s.notification.Count(store.NotificationAcked)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{
+	respondJSON(w, http.StatusOK, map[string]int{
 		"unread":       unread,
 		"read":         read,
 		"acknowledged": acked,
