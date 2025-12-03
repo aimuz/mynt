@@ -27,7 +27,7 @@
 
     async function loadData() {
         try {
-            pools = await api.listPools().catch(() => []);
+            pools = (await api.listPools().catch(() => [])) || [];
             loading = false;
         } catch (err) {
             console.error("Failed to load data:", err);

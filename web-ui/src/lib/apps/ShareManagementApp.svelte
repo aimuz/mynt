@@ -33,7 +33,7 @@
 
     async function loadData() {
         try {
-            shares = await api.listShares().catch(() => []);
+            shares = (await api.listShares().catch(() => [])) || [];
             loading = false;
         } catch (err) {
             console.error("Failed to load shares:", err);
