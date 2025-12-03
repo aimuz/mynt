@@ -208,7 +208,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return token and user info
-	// Return token and user info
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"token": token,
 		"user":  user,
