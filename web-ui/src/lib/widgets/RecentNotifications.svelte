@@ -9,7 +9,7 @@
 
     onMount(async () => {
         try {
-            notifications = await api.listNotifications("unread", 5);
+            notifications = (await api.listNotifications("unread", 5)) || [];
             loading = false;
         } catch (error) {
             console.error("Failed to load notifications:", error);

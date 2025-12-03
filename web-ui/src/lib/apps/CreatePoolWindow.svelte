@@ -59,7 +59,7 @@
 
     async function loadDisks() {
         try {
-            disks = await api.listDisks().catch(() => []);
+            disks = (await api.listDisks().catch(() => [])) || [];
             loading = false;
         } catch (err) {
             console.error("Failed to load disks:", err);

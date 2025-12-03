@@ -32,7 +32,7 @@
 
     async function loadData() {
         try {
-            users = await api.listUsers().catch(() => []);
+            users = (await api.listUsers().catch(() => [])) || [];
             loading = false;
         } catch (err) {
             console.error("Failed to load users:", err);
