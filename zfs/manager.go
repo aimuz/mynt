@@ -3,6 +3,8 @@ package zfs
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	gozfs "github.com/mistifyio/go-zfs/v4"
 	"go.aimuz.me/mynt/sysexec"
@@ -35,10 +37,20 @@ func (m *Manager) ListPools(ctx context.Context) ([]Pool, error) {
 
 // ListDatasets lists all datasets.
 func (m *Manager) ListDatasets(ctx context.Context) ([]Dataset, error) {
-	gozfsDatasets, err := gozfs.Datasets("")
+	fsDatasets, err := gozfs.Filesystems("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list datasets: %w", err)
 	}
+
+	VolDatasets, err := gozfs.Volumes("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list datasets: %w", err)
+	}
+
+	gozfsDatasets := slices.Concat(fsDatasets, VolDatasets)
+	slices.SortFunc(gozfsDatasets, func(a, b *gozfs.Dataset) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	datasets := make([]Dataset, 0, len(gozfsDatasets))
 	for _, gd := range gozfsDatasets {
@@ -60,10 +72,10 @@ func (m *Manager) ListDatasets(ctx context.Context) ([]Dataset, error) {
 
 // CreatePool creates a new ZFS pool.
 func (m *Manager) CreatePool(ctx context.Context, req CreatePoolRequest) error {
-	args := []string{req.Name}
-
 	// Add optional properties (none for now, but structure is ready)
-	properties := make(map[string]string)
+	properties := map[string]string{
+		"mountpoint": fmt.Sprintf("/mnt/%s", req.Name),
+	}
 
 	// Build vdev args
 	vdevArgs := make([]string, 0)
@@ -72,7 +84,7 @@ func (m *Manager) CreatePool(ctx context.Context, req CreatePoolRequest) error {
 	}
 	vdevArgs = append(vdevArgs, req.Devices...)
 
-	_, err := gozfs.CreateZpool(args[0], properties, vdevArgs...)
+	_, err := gozfs.CreateZpool(req.Name, properties, vdevArgs...)
 	if err != nil {
 		return fmt.Errorf("failed to create pool: %w", err)
 	}

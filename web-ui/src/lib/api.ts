@@ -134,7 +134,13 @@ class ApiClient {
             throw new Error(error || response.statusText);
         }
 
-        return response.json();
+        // Check Content-Type to determine if response is JSON
+        const contentType = response.headers.get('Content-Type');
+        if (contentType?.includes('application/json')) {
+            return response.json();
+        }
+
+        return undefined as T;
     }
 
     // Auth
@@ -200,6 +206,24 @@ class ApiClient {
         return this.request('/pools', {
             method: 'POST',
             body: JSON.stringify({ name, devices, type }),
+        });
+    }
+
+    // Datasets
+    async listDatasets(): Promise<StorageSpace[]> {
+        return this.request('/datasets');
+    }
+
+    async createDataset(req: CreateDatasetRequest): Promise<void> {
+        return this.request('/datasets', {
+            method: 'POST',
+            body: JSON.stringify(req),
+        });
+    }
+
+    async deleteDataset(name: string): Promise<void> {
+        return this.request(`/datasets/${encodeURIComponent(name)}`, {
+            method: 'DELETE',
         });
     }
 
@@ -286,14 +310,14 @@ class ApiClient {
     }
 
     async rollbackSnapshot(snapshotName: string): Promise<void> {
-        return this.request(`/snapshots/${encodeURIComponent(snapshotName)}/rollback`, {
+        return this.request(`/snapshots/rollback?name=${encodeURIComponent(snapshotName)}`, {
             method: 'POST',
         });
     }
 
     // Dataset quota management
     async setDatasetQuota(datasetName: string, quota: number): Promise<void> {
-        return this.request(`/datasets/${encodeURIComponent(datasetName)}/quota`, {
+        return this.request(`/datasets/quota?name=${encodeURIComponent(datasetName)}`, {
             method: 'PUT',
             body: JSON.stringify({ quota }),
         });

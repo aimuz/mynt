@@ -14,6 +14,10 @@
     import CreatePoolWindow from "$lib/apps/CreatePoolWindow.svelte";
     import SnapshotView from "$lib/apps/storage/SnapshotView.svelte";
     import OverviewView from "$lib/apps/storage/OverviewView.svelte";
+    import StorageSpaceListView from "$lib/apps/storage/StorageSpaceListView.svelte";
+    import DiskListView from "$lib/apps/storage/DiskListView.svelte";
+    import TaskLogView from "$lib/apps/storage/TaskLogView.svelte";
+    import EmptyState from "$lib/components/EmptyState.svelte";
 
     // View state
     let currentView = $state<string>("overview");
@@ -101,7 +105,7 @@
                         ? 'bg-primary/10 text-primary font-medium'
                         : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'}"
                 >
-                    <svelte:component this={item.icon} class="w-4 h-4" />
+                    <item.icon class="w-4 h-4" />
                     {item.name}
                 </button>
             {/each}
@@ -141,28 +145,13 @@
 
                     <!-- Pools Grid -->
                     {#if pools.length === 0}
-                        <div
-                            class="glass-card rounded-xl p-12 text-center fade-in"
-                        >
-                            <Database
-                                class="w-16 h-16 mx-auto mb-4 opacity-50 text-muted-foreground"
-                            />
-                            <h3
-                                class="text-lg font-semibold text-foreground mb-2"
-                            >
-                                暂无存储池
-                            </h3>
-                            <p class="text-sm text-muted-foreground mb-6">
-                                创建第一个存储池以开始使用
-                            </p>
-                            <button
-                                onclick={handleCreatePool}
-                                class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-all"
-                            >
-                                <Plus class="w-4 h-4" />
-                                创建存储池
-                            </button>
-                        </div>
+                        <EmptyState
+                            icon={Database}
+                            title="暂无存储池"
+                            description="创建第一个存储池以开始使用"
+                            actionLabel="创建存储池"
+                            onAction={handleCreatePool}
+                        />
                     {:else}
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {#each pools as pool, i}
@@ -275,47 +264,17 @@
             <!-- Overview View -->
             <OverviewView />
         {:else if currentView === "spaces"}
-            <!-- Storage Spaces Placeholder -->
-            <div class="p-6 flex-1 flex items-center justify-center">
-                <div class="text-center">
-                    <HardDrive
-                        class="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50"
-                    />
-                    <h3 class="text-lg font-semibold text-foreground mb-2">
-                        存储空间
-                    </h3>
-                    <p class="text-sm text-muted-foreground">即将推出</p>
-                </div>
-            </div>
+            <!-- Storage Spaces View -->
+            <StorageSpaceListView />
         {:else if currentView === "disks"}
-            <!-- Disks Placeholder -->
-            <div class="p-6 flex-1 flex items-center justify-center">
-                <div class="text-center">
-                    <Disc
-                        class="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50"
-                    />
-                    <h3 class="text-lg font-semibold text-foreground mb-2">
-                        磁盘与设备
-                    </h3>
-                    <p class="text-sm text-muted-foreground">即将推出</p>
-                </div>
-            </div>
+            <!-- Disks View -->
+            <DiskListView />
         {:else if currentView === "snapshots"}
             <!-- Snapshots View -->
             <SnapshotView />
         {:else if currentView === "tasks"}
-            <!-- Tasks Placeholder -->
-            <div class="p-6 flex-1 flex items-center justify-center">
-                <div class="text-center">
-                    <Activity
-                        class="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50"
-                    />
-                    <h3 class="text-lg font-semibold text-foreground mb-2">
-                        任务与日志
-                    </h3>
-                    <p class="text-sm text-muted-foreground">即将推出</p>
-                </div>
-            </div>
+            <!-- Tasks View -->
+            <TaskLogView />
         {/if}
     </div>
 </div>
