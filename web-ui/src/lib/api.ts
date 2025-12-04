@@ -33,6 +33,8 @@ interface Disk {
     serial: string;
     size: number;
     type: string;
+    in_use: boolean;
+    usage_reason: string;
 }
 
 interface Share {

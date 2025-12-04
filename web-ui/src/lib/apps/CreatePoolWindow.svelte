@@ -2,7 +2,12 @@
     import { onMount, getContext } from "svelte";
     import { api, type Disk } from "$lib/api";
     import { formatBytes } from "$lib/utils";
-    import { HardDrive, CircleAlert, Plus } from "@lucide/svelte";
+    import {
+        HardDrive,
+        CircleAlert,
+        Plus,
+        TriangleAlert,
+    } from "@lucide/svelte";
 
     interface CreatePoolWindowProps {
         onRefreshStorage?: () => void;
@@ -128,9 +133,13 @@
     }
 
     function isDiskAvailable(disk: Disk): boolean {
-        // A disk is available if it's not part of any existing pool
-        // For now, we'll assume all disks in the list are available
+        // Show all disks, but warn about in-use ones
         return true;
+    }
+
+    function canSelectDisk(disk: Disk): boolean {
+        // Allow selecting in-use disks but will show warnings
+        return !disk.in_use;
     }
 </script>
 
@@ -245,23 +254,41 @@
                     {#each disks as disk}
                         {#if isDiskAvailable(disk)}
                             <button
-                                onclick={() => toggleDisk(disk.path)}
-                                class="w-full p-3 rounded-lg border transition-all text-left flex items-center gap-3 {selectedDisks.includes(
-                                    disk.path,
-                                )
-                                    ? 'dark:border-blue-500 border-blue-600 dark:bg-blue-500/20 bg-blue-100/80'
-                                    : 'dark:border-gray-700 border-gray-300 dark:hover:border-gray-600 hover:border-gray-400 dark:hover:bg-gray-800/50 hover:bg-gray-100/50'}"
+                                onclick={() =>
+                                    canSelectDisk(disk) &&
+                                    toggleDisk(disk.path)}
+                                disabled={disk.in_use}
+                                class="w-full p-3 rounded-lg border transition-all text-left flex items-center gap-3 {disk.in_use
+                                    ? 'dark:border-orange-500/50 border-orange-400/50 dark:bg-orange-500/10 bg-orange-50/50 opacity-75 cursor-not-allowed'
+                                    : selectedDisks.includes(disk.path)
+                                      ? 'dark:border-blue-500 border-blue-600 dark:bg-blue-500/20 bg-blue-100/80'
+                                      : 'dark:border-gray-700 border-gray-300 dark:hover:border-gray-600 hover:border-gray-400 dark:hover:bg-gray-800/50 hover:bg-gray-100/50'}"
                             >
                                 <div
-                                    class="w-10 h-10 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shrink-0"
+                                    class="w-10 h-10 rounded-lg {disk.in_use
+                                        ? 'bg-linear-to-br from-orange-500 to-red-500'
+                                        : 'bg-linear-to-br from-blue-500 to-cyan-500'} flex items-center justify-center shrink-0"
                                 >
-                                    <HardDrive class="w-5 h-5 text-white" />
+                                    {#if disk.in_use}
+                                        <TriangleAlert
+                                            class="w-5 h-5 text-white"
+                                        />
+                                    {:else}
+                                        <HardDrive class="w-5 h-5 text-white" />
+                                    {/if}
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div
-                                        class="font-semibold text-sm dark:text-white text-gray-900"
+                                        class="font-semibold text-sm dark:text-white text-gray-900 flex items-center gap-2"
                                     >
                                         {disk.name}
+                                        {#if disk.in_use}
+                                            <span
+                                                class="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-600 dark:text-orange-400 uppercase tracking-wide font-bold"
+                                            >
+                                                In Use
+                                            </span>
+                                        {/if}
                                     </div>
                                     <div
                                         class="text-xs dark:text-gray-400 text-gray-600 truncate"
@@ -271,6 +298,14 @@
                                             · {disk.model}
                                         {/if}
                                     </div>
+                                    {#if disk.in_use && disk.usage_reason}
+                                        <div
+                                            class="text-xs text-orange-600 dark:text-orange-400 mt-1 flex items-center gap-1"
+                                        >
+                                            <CircleAlert class="w-3 h-3" />
+                                            {disk.usage_reason}
+                                        </div>
+                                    {/if}
                                 </div>
                                 <div class="text-right shrink-0">
                                     <div
