@@ -1,13 +1,10 @@
 package zfs
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
 
+	gozfs "github.com/mistifyio/go-zfs/v4"
 	"go.aimuz.me/mynt/sysexec"
 )
 
@@ -22,93 +19,96 @@ func NewManager() *Manager {
 }
 
 // ListPools lists all imported ZFS pools.
-// It runs `zpool list -H -p -o name,guid,size,alloc,free,frag,health,altroot`
 func (m *Manager) ListPools(ctx context.Context) ([]Pool, error) {
-	args := []string{"list", "-H", "-p", "-o", "name,guid,size,alloc,free,frag,health,altroot"}
-	out, err := m.exec.Output(ctx, "zpool", args...)
+	zpools, err := gozfs.ListZpools()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pools: %w", err)
 	}
 
-	var pools []Pool
-	scanner := bufio.NewScanner(bytes.NewReader(out))
-	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Split(line, "\t")
-		if len(fields) < 8 {
-			continue
-		}
-
-		size, _ := strconv.ParseUint(fields[2], 10, 64)
-		alloc, _ := strconv.ParseUint(fields[3], 10, 64)
-		free, _ := strconv.ParseUint(fields[4], 10, 64)
-		frag, _ := strconv.ParseUint(strings.TrimSuffix(fields[5], "%"), 10, 64)
-
-		pools = append(pools, Pool{
-			Name:      fields[0],
-			GUID:      fields[1],
-			Size:      size,
-			Allocated: alloc,
-			Free:      free,
-			Frag:      frag,
-			Health:    PoolStatus(fields[6]),
-			AltRoot:   fields[7],
-		})
+	pools := make([]Pool, 0, len(zpools))
+	for _, zp := range zpools {
+		pools = append(pools, fromGozfsPool(zp))
 	}
 
 	return pools, nil
 }
 
 // ListDatasets lists all datasets.
-// It runs `zfs list -H -p -o name,type,used,avail,refer,mountpoint,compression,encryption,dedup`
 func (m *Manager) ListDatasets(ctx context.Context) ([]Dataset, error) {
-	args := []string{"list", "-H", "-p", "-o", "name,type,used,avail,refer,mountpoint,compression,encryption,dedup"}
-	out, err := m.exec.Output(ctx, "zfs", args...)
+	gozfsDatasets, err := gozfs.Datasets("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list datasets: %w", err)
 	}
 
-	var datasets []Dataset
-	scanner := bufio.NewScanner(bytes.NewReader(out))
-	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Split(line, "\t")
-		if len(fields) < 9 {
-			continue
+	datasets := make([]Dataset, 0, len(gozfsDatasets))
+	for _, gd := range gozfsDatasets {
+		ds := fromGozfsDataset(gd)
+
+		// Get encryption and dedup properties
+		if enc, err := gd.GetProperty("encryption"); err == nil {
+			ds.Encryption = enc
+		}
+		if dedup, err := gd.GetProperty("dedup"); err == nil {
+			ds.Deduplication = dedup
 		}
 
-		used, _ := strconv.ParseUint(fields[2], 10, 64)
-		avail, _ := strconv.ParseUint(fields[3], 10, 64)
-		refer, _ := strconv.ParseUint(fields[4], 10, 64)
-
-		datasets = append(datasets, Dataset{
-			Name:          fields[0],
-			Type:          DatasetType(fields[1]),
-			Used:          used,
-			Available:     avail,
-			Referenced:    refer,
-			Mountpoint:    fields[5],
-			Compression:   fields[6],
-			Encryption:    fields[7],
-			Deduplication: fields[8],
-		})
+		datasets = append(datasets, ds)
 	}
 
 	return datasets, nil
 }
 
 // CreatePool creates a new ZFS pool.
-// It runs `zpool create <name> <type> <devices...>`
 func (m *Manager) CreatePool(ctx context.Context, req CreatePoolRequest) error {
-	args := []string{"create", "-f", req.Name} // -f to force if needed (be careful in prod)
-	if req.Type != "" {
-		args = append(args, req.Type)
-	}
-	args = append(args, req.Devices...)
+	args := []string{req.Name}
 
-	_, err := m.exec.Output(ctx, "zpool", args...)
+	// Add optional properties (none for now, but structure is ready)
+	properties := make(map[string]string)
+
+	// Build vdev args
+	vdevArgs := make([]string, 0)
+	if req.Type != "" {
+		vdevArgs = append(vdevArgs, req.Type)
+	}
+	vdevArgs = append(vdevArgs, req.Devices...)
+
+	_, err := gozfs.CreateZpool(args[0], properties, vdevArgs...)
 	if err != nil {
 		return fmt.Errorf("failed to create pool: %w", err)
 	}
+
 	return nil
+}
+
+// DestroyPool destroys a ZFS pool.
+func (m *Manager) DestroyPool(ctx context.Context, name string) error {
+	zpool, err := gozfs.GetZpool(name)
+	if err != nil {
+		return fmt.Errorf("failed to get pool: %w", err)
+	}
+
+	if err := zpool.Destroy(); err != nil {
+		return fmt.Errorf("failed to destroy pool: %w", err)
+	}
+
+	return nil
+}
+
+// Scrub starts a scrub operation on a pool.
+// Note: go-zfs/v4 doesn't provide scrub functionality, so we implement it ourselves.
+func (m *Manager) Scrub(ctx context.Context, poolName string) error {
+	_, err := m.exec.Output(ctx, "zpool", "scrub", poolName)
+	if err != nil {
+		return fmt.Errorf("failed to start scrub: %w", err)
+	}
+	return nil
+}
+
+// ScrubStatus gets the scrub status of a pool.
+func (m *Manager) ScrubStatus(ctx context.Context, poolName string) (string, error) {
+	out, err := m.exec.Output(ctx, "zpool", "status", poolName)
+	if err != nil {
+		return "", fmt.Errorf("failed to get scrub status: %w", err)
+	}
+	return string(out), nil
 }
