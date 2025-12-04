@@ -78,13 +78,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/datasets", s.protected(s.handleCreateDataset))
 	s.mux.HandleFunc("GET /api/v1/datasets/{name...}", s.protected(s.handleGetDataset))
 	s.mux.HandleFunc("DELETE /api/v1/datasets/{name...}", s.protected(s.handleDestroyDataset))
-	s.mux.HandleFunc("PUT /api/v1/datasets/{name...}/quota", s.protected(s.handleSetDatasetQuota))
+	s.mux.HandleFunc("PUT /api/v1/datasets/quota", s.protected(s.handleSetDatasetQuota))
 
 	// Snapshot endpoints
 	s.mux.HandleFunc("GET /api/v1/snapshots", s.protected(s.handleListSnapshots))
 	s.mux.HandleFunc("POST /api/v1/snapshots", s.protected(s.handleCreateSnapshot))
 	s.mux.HandleFunc("DELETE /api/v1/snapshots/{name...}", s.protected(s.handleDestroySnapshot))
-	s.mux.HandleFunc("POST /api/v1/snapshots/{name...}/rollback", s.protected(s.handleRollbackSnapshot))
+	s.mux.HandleFunc("POST /api/v1/snapshots/rollback", s.protected(s.handleRollbackSnapshot))
 
 	// Shares
 	s.mux.HandleFunc("GET /api/v1/shares", s.protected(s.handleListShares))
@@ -555,9 +555,9 @@ func (s *Server) handleScrubStatus(w http.ResponseWriter, r *http.Request) {
 // Dataset quota handler
 
 func (s *Server) handleSetDatasetQuota(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	name := r.URL.Query().Get("name")
 	if name == "" {
-		http.Error(w, "dataset name required", http.StatusBadRequest)
+		http.Error(w, "dataset name required in query parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -627,9 +627,9 @@ func (s *Server) handleDestroySnapshot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRollbackSnapshot(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	name := r.URL.Query().Get("name")
 	if name == "" {
-		http.Error(w, "snapshot name required", http.StatusBadRequest)
+		http.Error(w, "snapshot name required in query parameter", http.StatusBadRequest)
 		return
 	}
 
