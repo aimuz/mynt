@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.aimuz.me/mynt/auth"
+	"go.aimuz.me/mynt/disk"
 	"go.aimuz.me/mynt/event"
 	"go.aimuz.me/mynt/internal/api"
 	"go.aimuz.me/mynt/share"
@@ -28,6 +29,7 @@ func setupTestServer(t *testing.T) (*api.Server, *store.DB) {
 	// Components
 	pools := zfs.NewManager()
 	bus := event.NewBus()
+	diskMgr := disk.NewManager()
 	tm, _ := task.New(store.NewTaskRepo(db))
 
 	// Share manager
@@ -47,7 +49,7 @@ func setupTestServer(t *testing.T) (*api.Server, *store.DB) {
 	notifRepo := store.NewNotificationRepo(db)
 
 	// Server
-	srv := api.NewServer(pools, bus, tm, shareMgr, userMgr, configRepo, notifRepo, authConfig)
+	srv := api.NewServer(pools, diskMgr, bus, tm, shareMgr, userMgr, configRepo, notifRepo, authConfig)
 
 	return srv, db
 }

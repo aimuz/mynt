@@ -17,11 +17,11 @@ type DiskScanner struct {
 }
 
 // NewDiskScanner creates a disk scanner that publishes to the event bus.
-func NewDiskScanner(bus *event.Bus, repo *store.DiskRepo) *DiskScanner {
+func NewDiskScanner(bus *event.Bus, repo *store.DiskRepo, diskMgr *disk.Manager) *DiskScanner {
 	return &DiskScanner{
 		bus:     bus,
 		repo:    repo,
-		diskMgr: disk.NewManager(),
+		diskMgr: diskMgr,
 	}
 }
 

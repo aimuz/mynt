@@ -34,10 +34,10 @@ type Server struct {
 }
 
 // NewServer creates a new API server.
-func NewServer(zfs *zfs.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, authCfg *auth.Config) *Server {
+func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, authCfg *auth.Config) *Server {
 	s := &Server{
 		zfs:          zfs,
-		disk:         disk.NewManager(),
+		disk:         diskMgr,
 		bus:          bus,
 		tm:           tm,
 		share:        sm,

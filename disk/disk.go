@@ -51,12 +51,29 @@ type Info struct {
 
 // Manager handles disk operations.
 type Manager struct {
-	exec sysexec.Executor
+	exec               sysexec.Executor
+	includeLoopDevices bool // Feature flag to include loop devices (useful for testing)
+}
+
+// ManagerOption is a function that configures a Manager.
+type ManagerOption func(*Manager)
+
+// WithLoopDevices enables loop device detection (useful for testing in VMs).
+func WithLoopDevices() ManagerOption {
+	return func(m *Manager) {
+		m.includeLoopDevices = true
+	}
 }
 
 // NewManager creates a new disk manager.
-func NewManager() *Manager {
-	return &Manager{exec: sysexec.NewExecutor()}
+// Options can be passed to configure the manager:
+//   - WithLoopDevices(): Enable loop device detection for testing
+func NewManager(opts ...ManagerOption) *Manager {
+	m := &Manager{exec: sysexec.NewExecutor()}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
 }
 
 // List returns all physical disks on the system.
