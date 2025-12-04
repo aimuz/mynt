@@ -38,7 +38,8 @@ func (m *Manager) list(ctx context.Context) ([]Info, error) {
 
 	disks := make([]Info, 0, len(result.BlockDevices))
 	for _, bd := range result.BlockDevices {
-		if bd.Type != "disk" {
+		// Accept disk type, and optionally loop devices if feature flag is enabled
+		if bd.Type != "disk" && !(m.includeLoopDevices && bd.Type == "loop") {
 			continue
 		}
 

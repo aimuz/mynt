@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go.aimuz.me/mynt/auth"
+	"go.aimuz.me/mynt/disk"
 	"go.aimuz.me/mynt/event"
 	"go.aimuz.me/mynt/internal/api"
 	"go.aimuz.me/mynt/logger"
@@ -28,6 +29,7 @@ func main() {
 	smbConfig := flag.String("smb-config", "", "Path to smb.conf (empty for auto-detect)")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	logFormat := flag.String("log-format", "text", "Log format (text, json)")
+	enableLoopDevices := flag.Bool("enable-loop-devices", false, "Enable detection of loop devices (for testing)")
 	flag.Parse()
 
 	// Initialize logger
@@ -91,8 +93,17 @@ func main() {
 	authConfig := auth.DefaultConfig(jwtSecret)
 
 	// Monitoring with disk repository
+	// Monitoring with disk repository
 	diskRepo := store.NewDiskRepo(db)
-	diskScanner := monitor.NewDiskScanner(bus, diskRepo)
+
+	// Disk Manager
+	var diskOpts []disk.ManagerOption
+	if *enableLoopDevices {
+		diskOpts = append(diskOpts, disk.WithLoopDevices())
+	}
+	diskMgr := disk.NewManager(diskOpts...)
+
+	diskScanner := monitor.NewDiskScanner(bus, diskRepo, diskMgr)
 	zfsScanner := monitor.NewZFSScanner(bus, pools)
 	mon := monitor.New(
 		[]monitor.Scanner{diskScanner, zfsScanner},
@@ -113,7 +124,7 @@ func main() {
 	}
 
 	// API Server with authentication
-	srv := api.NewServer(pools, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, authConfig)
+	srv := api.NewServer(pools, diskMgr, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, authConfig)
 	httpSrv := &http.Server{
 		Addr:    *addr,
 		Handler: srv,
