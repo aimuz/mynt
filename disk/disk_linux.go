@@ -77,13 +77,17 @@ func detectUsageStatus(info *Info, bd *lsblkDevice) {
 	if bd.Fstype != "" {
 		info.InUse = true
 		if bd.Fstype == "zfs_member" {
+			info.Usage = &UsageInfo{
+				Type: UsageTypeZFSMember,
+			}
 			if bd.Label != "" {
-				info.UsageReason = fmt.Sprintf("ZFS Pool Member (%s)", bd.Label)
-			} else {
-				info.UsageReason = "ZFS Pool Member"
+				info.Usage.Params = map[string]string{"pool": bd.Label}
 			}
 		} else {
-			info.UsageReason = fmt.Sprintf("Formatted (%s)", bd.Fstype)
+			info.Usage = &UsageInfo{
+				Type:   UsageTypeFormatted,
+				Params: map[string]string{"fstype": bd.Fstype},
+			}
 		}
 		return
 	}
@@ -92,7 +96,9 @@ func detectUsageStatus(info *Info, bd *lsblkDevice) {
 	for _, child := range bd.Children {
 		if child.Type == "part" {
 			info.InUse = true
-			info.UsageReason = "Has Partitions"
+			info.Usage = &UsageInfo{
+				Type: UsageTypePartitions,
+			}
 			return
 		}
 	}

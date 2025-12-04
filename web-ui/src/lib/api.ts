@@ -26,6 +26,11 @@ interface Pool {
     capacity: number;
 }
 
+interface UsageInfo {
+    type: string;
+    params?: Record<string, string>;
+}
+
 interface Disk {
     name: string;
     path: string;
@@ -34,7 +39,7 @@ interface Disk {
     size: number;
     type: string;
     in_use: boolean;
-    usage_reason: string;
+    usage?: UsageInfo;
 }
 
 interface Share {

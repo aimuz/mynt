@@ -141,6 +141,30 @@
         // Allow selecting in-use disks but will show warnings
         return !disk.in_use;
     }
+
+    // Format disk usage for display (ready for future i18n)
+    function formatDiskUsage(disk: Disk): string {
+        if (!disk.usage) return "";
+
+        switch (disk.usage.type) {
+            case "zfs_member":
+                return disk.usage.params?.pool
+                    ? `ZFS Pool Member (${disk.usage.params.pool})`
+                    : "ZFS Pool Member";
+            case "formatted":
+                return disk.usage.params?.fstype
+                    ? `Formatted (${disk.usage.params.fstype})`
+                    : "Formatted";
+            case "has_partitions":
+                return "Has Partitions";
+            case "system_disk":
+                return disk.usage.params?.fstype
+                    ? `System Disk (${disk.usage.params.fstype})`
+                    : "System Disk";
+            default:
+                return "In Use";
+        }
+    }
 </script>
 
 <div class="p-6 h-full overflow-auto">
@@ -298,12 +322,12 @@
                                             · {disk.model}
                                         {/if}
                                     </div>
-                                    {#if disk.in_use && disk.usage_reason}
+                                    {#if disk.in_use && disk.usage}
                                         <div
                                             class="text-xs text-orange-600 dark:text-orange-400 mt-1 flex items-center gap-1"
                                         >
                                             <CircleAlert class="w-3 h-3" />
-                                            {disk.usage_reason}
+                                            {formatDiskUsage(disk)}
                                         </div>
                                     {/if}
                                 </div>
