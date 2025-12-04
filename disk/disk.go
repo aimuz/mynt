@@ -19,16 +19,34 @@ const (
 	Unknown Type = "Unknown"
 )
 
+// UsageType represents why a disk is in use.
+type UsageType string
+
+const (
+	UsageTypeNone       UsageType = ""
+	UsageTypeZFSMember  UsageType = "zfs_member"
+	UsageTypeFormatted  UsageType = "formatted"
+	UsageTypePartitions UsageType = "has_partitions"
+	UsageTypeSystem     UsageType = "system_disk"
+)
+
+// UsageInfo contains structured information about disk usage.
+// This enables i18n support in the frontend.
+type UsageInfo struct {
+	Type   UsageType         `json:"type"`             // Usage type identifier
+	Params map[string]string `json:"params,omitempty"` // Parameters for the usage type
+}
+
 // Info represents a physical disk.
 type Info struct {
-	Name        string `json:"name"`         // e.g., "sda", "nvme0n1"
-	Path        string `json:"path"`         // e.g., "/dev/sda"
-	Model       string `json:"model"`        // e.g., "Samsung SSD 860"
-	Serial      string `json:"serial"`       // Unique serial number
-	Size        uint64 `json:"size"`         // Size in bytes
-	Type        Type   `json:"type"`         // Disk technology
-	InUse       bool   `json:"in_use"`       // Whether disk is currently in use
-	UsageReason string `json:"usage_reason"` // Why disk is in use (if InUse is true)
+	Name   string     `json:"name"`            // e.g., "sda", "nvme0n1"
+	Path   string     `json:"path"`            // e.g., "/dev/sda"
+	Model  string     `json:"model"`           // e.g., "Samsung SSD 860"
+	Serial string     `json:"serial"`          // Unique serial number
+	Size   uint64     `json:"size"`            // Size in bytes
+	Type   Type       `json:"type"`            // Disk technology
+	InUse  bool       `json:"in_use"`          // Whether disk is currently in use
+	Usage  *UsageInfo `json:"usage,omitempty"` // Structured usage information for i18n
 }
 
 // Manager handles disk operations.
