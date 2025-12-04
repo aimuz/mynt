@@ -3,6 +3,8 @@ package zfs
 import (
 	"context"
 	"fmt"
+
+	gozfs "github.com/mistifyio/go-zfs/v4"
 )
 
 // CreateDatasetRequest represents a request to create a dataset.
@@ -24,42 +26,42 @@ func (m *Manager) CreateDataset(ctx context.Context, req CreateDatasetRequest) e
 		req.Type = "filesystem"
 	}
 
-	args := []string{"create"}
+	var err error
 
-	// Add properties
-	for key, value := range req.Properties {
-		args = append(args, "-o", fmt.Sprintf("%s=%s", key, value))
-	}
-
-	// For volumes, specify size with -V
 	if req.Type == "volume" {
 		if req.Size == 0 {
 			return fmt.Errorf("size is required for volumes")
 		}
-		args = append(args, "-V", formatSize(req.Size))
+		_, err = gozfs.CreateVolume(req.Name, req.Size, req.Properties)
+	} else {
+		_, err = gozfs.CreateFilesystem(req.Name, req.Properties)
 	}
 
-	args = append(args, req.Name)
+	if err != nil {
+		return fmt.Errorf("failed to create dataset: %w", err)
+	}
 
-	_, err := m.exec.Output(ctx, "zfs", args...)
-	return err
+	return nil
 }
 
 // GetDataset returns details for a specific dataset.
 func (m *Manager) GetDataset(ctx context.Context, name string) (*Dataset, error) {
-	// For now, list all and find the one
-	datasets, err := m.ListDatasets(ctx)
+	gozfsDataset, err := gozfs.GetDataset(name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("dataset not found: %s: %w", name, err)
 	}
 
-	for _, d := range datasets {
-		if d.Name == name {
-			return &d, nil
-		}
+	dataset := fromGozfsDataset(gozfsDataset)
+
+	// Get encryption and dedup properties
+	if enc, err := gozfsDataset.GetProperty("encryption"); err == nil {
+		dataset.Encryption = enc
+	}
+	if dedup, err := gozfsDataset.GetProperty("dedup"); err == nil {
+		dataset.Deduplication = dedup
 	}
 
-	return nil, fmt.Errorf("dataset not found: %s", name)
+	return &dataset, nil
 }
 
 // DestroyDataset destroys a ZFS dataset.
@@ -68,9 +70,17 @@ func (m *Manager) DestroyDataset(ctx context.Context, name string) error {
 		return fmt.Errorf("dataset name is required")
 	}
 
-	// Use -r to destroy recursively (including snapshots and children)
-	_, err := m.exec.Output(ctx, "zfs", "destroy", "-r", name)
-	return err
+	gozfsDataset, err := gozfs.GetDataset(name)
+	if err != nil {
+		return fmt.Errorf("dataset not found: %s: %w", name, err)
+	}
+
+	// Use DestroyRecursive flag to destroy recursively (including snapshots and children)
+	if err := gozfsDataset.Destroy(gozfs.DestroyRecursive); err != nil {
+		return fmt.Errorf("failed to destroy dataset: %w", err)
+	}
+
+	return nil
 }
 
 // SetProperty sets a property on a dataset.
@@ -79,29 +89,14 @@ func (m *Manager) SetProperty(ctx context.Context, name, key, value string) erro
 		return fmt.Errorf("dataset name and property key are required")
 	}
 
-	_, err := m.exec.Output(ctx, "zfs", "set", fmt.Sprintf("%s=%s", key, value), name)
-	return err
-}
-
-// formatSize formats bytes to human-readable ZFS size format.
-func formatSize(bytes uint64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
-		TB = GB * 1024
-	)
-
-	switch {
-	case bytes >= TB:
-		return fmt.Sprintf("%dT", bytes/TB)
-	case bytes >= GB:
-		return fmt.Sprintf("%dG", bytes/GB)
-	case bytes >= MB:
-		return fmt.Sprintf("%dM", bytes/MB)
-	case bytes >= KB:
-		return fmt.Sprintf("%dK", bytes/KB)
-	default:
-		return fmt.Sprintf("%d", bytes)
+	gozfsDataset, err := gozfs.GetDataset(name)
+	if err != nil {
+		return fmt.Errorf("dataset not found: %s: %w", name, err)
 	}
+
+	if err := gozfsDataset.SetProperty(key, value); err != nil {
+		return fmt.Errorf("failed to set property: %w", err)
+	}
+
+	return nil
 }
