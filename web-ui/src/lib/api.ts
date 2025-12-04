@@ -24,6 +24,43 @@ interface Pool {
     allocated: number;
     free: number;
     capacity: number;
+    // Extended fields
+    disk_count?: number;
+    redundancy_level?: string;
+    last_scrub?: string;
+    scrub_in_progress?: boolean;
+}
+
+interface StorageSpace {
+    name: string;
+    type: 'filesystem' | 'volume';
+    pool: string;
+    used: number;
+    available: number;
+    referenced: number;
+    quota?: number;
+    reservation?: number;
+    mountpoint?: string;
+    compression?: string;
+}
+
+interface Snapshot {
+    name: string;
+    dataset: string;
+    created_at: string;
+    used: number;
+    referenced: number;
+    source: string; // "manual", "policy:daily", etc.
+}
+
+interface CreateDatasetRequest {
+    name: string;
+    type?: string;
+    size?: number;
+    use_case?: string;
+    quota_mode?: string;
+    quota?: number;
+    properties?: Record<string, string>;
 }
 
 interface UsageInfo {
@@ -229,7 +266,51 @@ class ApiClient {
             method: 'DELETE',
         });
     }
+
+    // Snapshots
+    async listSnapshots(dataset: string): Promise<Snapshot[]> {
+        return this.request(`/snapshots?dataset=${encodeURIComponent(dataset)}`);
+    }
+
+    async createSnapshot(dataset: string, name: string): Promise<Snapshot> {
+        return this.request('/snapshots', {
+            method: 'POST',
+            body: JSON.stringify({ dataset, name }),
+        });
+    }
+
+    async deleteSnapshot(snapshotName: string): Promise<void> {
+        return this.request(`/snapshots/${encodeURIComponent(snapshotName)}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async rollbackSnapshot(snapshotName: string): Promise<void> {
+        return this.request(`/snapshots/${encodeURIComponent(snapshotName)}/rollback`, {
+            method: 'POST',
+        });
+    }
+
+    // Dataset quota management
+    async setDatasetQuota(datasetName: string, quota: number): Promise<void> {
+        return this.request(`/datasets/${encodeURIComponent(datasetName)}/quota`, {
+            method: 'PUT',
+            body: JSON.stringify({ quota }),
+        });
+    }
+
+    // Pool management
+    async scrubPool(poolName: string): Promise<void> {
+        return this.request(`/pools/${poolName}/scrub`, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'start' }),
+        });
+    }
+
+    async getScrubStatus(poolName: string): Promise<{ status: string }> {
+        return this.request(`/pools/${poolName}/scrub/status`);
+    }
 }
 
 export const api = new ApiClient();
-export type { User, Pool, Disk, Share, Notification };
+export type { User, Pool, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest };
