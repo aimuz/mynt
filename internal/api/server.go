@@ -69,10 +69,22 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/disks/smart", s.protected(s.handleDiskSmart))
 	s.mux.HandleFunc("GET /api/v1/pools", s.protected(s.handleListPools))
 	s.mux.HandleFunc("POST /api/v1/pools", s.protected(s.handleCreatePool))
+
+	// Enhanced pool operations
+	s.mux.HandleFunc("POST /api/v1/pools/{name}/scrub", s.protected(s.handlePoolScrub))
+	s.mux.HandleFunc("GET /api/v1/pools/{name}/scrub/status", s.protected(s.handleScrubStatus))
+
 	s.mux.HandleFunc("GET /api/v1/datasets", s.protected(s.handleListDatasets))
 	s.mux.HandleFunc("POST /api/v1/datasets", s.protected(s.handleCreateDataset))
 	s.mux.HandleFunc("GET /api/v1/datasets/{name...}", s.protected(s.handleGetDataset))
 	s.mux.HandleFunc("DELETE /api/v1/datasets/{name...}", s.protected(s.handleDestroyDataset))
+	s.mux.HandleFunc("PUT /api/v1/datasets/{name...}/quota", s.protected(s.handleSetDatasetQuota))
+
+	// Snapshot endpoints
+	s.mux.HandleFunc("GET /api/v1/snapshots", s.protected(s.handleListSnapshots))
+	s.mux.HandleFunc("POST /api/v1/snapshots", s.protected(s.handleCreateSnapshot))
+	s.mux.HandleFunc("DELETE /api/v1/snapshots/{name...}", s.protected(s.handleDestroySnapshot))
+	s.mux.HandleFunc("POST /api/v1/snapshots/{name...}/rollback", s.protected(s.handleRollbackSnapshot))
 
 	// Shares
 	s.mux.HandleFunc("GET /api/v1/shares", s.protected(s.handleListShares))
@@ -484,6 +496,144 @@ func (s *Server) handleDeleteNotification(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := s.notification.Delete(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Pool scrub handlers
+
+func (s *Server) handlePoolScrub(w http.ResponseWriter, r *http.Request) {
+	poolName := r.PathValue("name")
+	if poolName == "" {
+		http.Error(w, "pool name required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Action string `json:"action"` // start, stop, pause
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Only "start" is supported for now via the Scrub method
+	if req.Action != "start" {
+		http.Error(w, "only 'start' action is supported", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.zfs.Scrub(r.Context(), poolName); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *Server) handleScrubStatus(w http.ResponseWriter, r *http.Request) {
+	poolName := r.PathValue("name")
+	if poolName == "" {
+		http.Error(w, "pool name required", http.StatusBadRequest)
+		return
+	}
+
+	status, err := s.zfs.ScrubStatus(r.Context(), poolName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]string{
+		"status": status,
+	})
+}
+
+// Dataset quota handler
+
+func (s *Server) handleSetDatasetQuota(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "dataset name required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Quota uint64 `json:"quota"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.zfs.SetQuota(r.Context(), name, req.Quota); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Snapshot handlers
+
+func (s *Server) handleListSnapshots(w http.ResponseWriter, r *http.Request) {
+	datasetName := r.URL.Query().Get("dataset")
+	if datasetName == "" {
+		http.Error(w, "dataset parameter required", http.StatusBadRequest)
+		return
+	}
+
+	snapshots, err := s.zfs.ListSnapshots(r.Context(), datasetName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, snapshots)
+}
+
+func (s *Server) handleCreateSnapshot(w http.ResponseWriter, r *http.Request) {
+	var req zfs.CreateSnapshotRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	snapshot, err := s.zfs.CreateSnapshot(r.Context(), req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, snapshot)
+}
+
+func (s *Server) handleDestroySnapshot(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "snapshot name required", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.zfs.DestroySnapshot(r.Context(), name); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleRollbackSnapshot(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "snapshot name required", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.zfs.RollbackSnapshot(r.Context(), name); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
