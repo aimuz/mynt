@@ -39,6 +39,8 @@ This document provides Claude AI with essential context about the Mynt NAS proje
 - **Build Tool**: Vite 7
 - **Package Manager**: Bun (NOT npm)
 - **Icons**: Lucide Svelte
+    - **Package name**: Always import from `@lucide/svelte` (the correct package name)
+    - ⚠️ Do NOT use `lucide-svelte` (deprecated/incorrect package name)
 - **Charts**: Chart.js
 - **Deployment**: Static adapter (embedded in Go binary)
 
