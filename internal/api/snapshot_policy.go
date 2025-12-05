@@ -1,0 +1,105 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"regexp"
+	"strconv"
+
+	"go.aimuz.me/mynt/store"
+)
+
+// policyNameRegex validates policy names: letters, numbers, underscores, hyphens only
+var policyNameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
+
+func (s *Server) handleListSnapshotPolicies(w http.ResponseWriter, r *http.Request) {
+	policies, err := s.snapshotPolicy.List()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, policies)
+}
+
+func (s *Server) handleCreateSnapshotPolicy(w http.ResponseWriter, r *http.Request) {
+	var policy store.SnapshotPolicy
+	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if policy.Name == "" || policy.Schedule == "" || policy.Retention == "" {
+		http.Error(w, "name, schedule, and retention are required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate policy name format (must be English letters, numbers, underscores, hyphens)
+	if !policyNameRegex.MatchString(policy.Name) {
+		http.Error(w, "policy name must start with a letter and contain only letters, numbers, underscores, and hyphens", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.snapshotPolicy.Save(&policy); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	s.notifyPolicyChange()
+	respondJSON(w, http.StatusCreated, policy)
+}
+
+func (s *Server) handleUpdateSnapshotPolicy(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid policy ID", http.StatusBadRequest)
+		return
+	}
+
+	var policy store.SnapshotPolicy
+	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate policy name format
+	if policy.Name != "" && !policyNameRegex.MatchString(policy.Name) {
+		http.Error(w, "policy name must start with a letter and contain only letters, numbers, underscores, and hyphens", http.StatusBadRequest)
+		return
+	}
+
+	policy.ID = id
+
+	if err := s.snapshotPolicy.Update(&policy); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	s.notifyPolicyChange()
+	respondJSON(w, http.StatusOK, policy)
+}
+
+func (s *Server) handleDeleteSnapshotPolicy(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid policy ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.snapshotPolicy.Delete(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	s.notifyPolicyChange()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// notifyPolicyChange calls the onPolicyChange callback if set.
+func (s *Server) notifyPolicyChange() {
+	if s.onPolicyChange != nil {
+		s.onPolicyChange()
+	}
+}

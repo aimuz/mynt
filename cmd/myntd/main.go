@@ -15,6 +15,7 @@ import (
 	"go.aimuz.me/mynt/internal/api"
 	"go.aimuz.me/mynt/logger"
 	"go.aimuz.me/mynt/monitor"
+	"go.aimuz.me/mynt/scheduler"
 	"go.aimuz.me/mynt/share"
 	"go.aimuz.me/mynt/store"
 	"go.aimuz.me/mynt/task"
@@ -79,6 +80,7 @@ func main() {
 	// Event bus with persistence
 	bus := event.NewBus()
 	notificationRepo := store.NewNotificationRepo(db)
+	snapshotPolicyRepo := store.NewSnapshotPolicyRepo(db)
 	bus.SetPersister(notificationRepo)
 
 	// Share manager
@@ -92,7 +94,6 @@ func main() {
 	// Auth config
 	authConfig := auth.DefaultConfig(jwtSecret)
 
-	// Monitoring with disk repository
 	// Monitoring with disk repository
 	diskRepo := store.NewDiskRepo(db)
 
@@ -116,6 +117,14 @@ func main() {
 
 	logger.Info("monitoring started", "scanners", 2, "interval_sec", 30)
 
+	// Snapshot Policy Scheduler
+	snapshotScheduler := scheduler.New(snapshotPolicyRepo, pools)
+	if err := snapshotScheduler.Start(ctx); err != nil {
+		logger.Error("failed to start snapshot scheduler", "error", err)
+		os.Exit(1)
+	}
+	defer snapshotScheduler.Stop()
+
 	// Check initialization status
 	initialized, _ := configRepo.IsInitialized()
 	if !initialized {
@@ -124,7 +133,7 @@ func main() {
 	}
 
 	// API Server with authentication
-	srv := api.NewServer(pools, diskMgr, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, authConfig)
+	srv := api.NewServer(pools, diskMgr, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, snapshotPolicyRepo, authConfig, func() { _ = snapshotScheduler.Reload() })
 	httpSrv := &http.Server{
 		Addr:    *addr,
 		Handler: srv,

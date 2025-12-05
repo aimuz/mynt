@@ -70,13 +70,33 @@ func (m *Manager) ListSnapshots(ctx context.Context, datasetName string) ([]Snap
 			}
 		}
 
+		// Detect source from snapshot name
+		// Auto snapshots use format: auto-{policyName}-{timestamp}
+		source := "manual"
+		parts := strings.Split(snap.Name, "@")
+		if len(parts) == 2 {
+			snapName := parts[1]
+			if strings.HasPrefix(snapName, "auto-") {
+				// Extract policy name: auto-{policyName}-{timestamp}
+				// Remove "auto-" prefix, then find the last "-" before timestamp
+				rest := strings.TrimPrefix(snapName, "auto-")
+				// Timestamp format is YYYYMMDD-HHMMSS (15 chars)
+				if len(rest) > 16 {
+					policyName := rest[:len(rest)-16] // Remove "-YYYYMMDD-HHMMSS"
+					source = "policy:" + policyName
+				} else {
+					source = "policy:auto"
+				}
+			}
+		}
+
 		snapshots = append(snapshots, Snapshot{
 			Name:       snap.Name,
 			Dataset:    datasetName,
 			CreatedAt:  createdAt,
 			Used:       snap.Used,
 			Referenced: snap.Referenced,
-			Source:     "manual", // TODO: enhance to detect policy-based snapshots
+			Source:     source,
 		})
 	}
 

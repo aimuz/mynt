@@ -87,15 +87,6 @@
 <div class="flex h-full">
     <!-- Left Navigation Sidebar -->
     <nav class="w-48 glass-card border-r border-border/50 flex flex-col">
-        <div class="p-4 border-b border-border/50">
-            <h2
-                class="text-lg font-bold text-foreground flex items-center gap-2"
-            >
-                <Database class="w-5 h-5" />
-                储存管理
-            </h2>
-        </div>
-
         <div class="flex-1 overflow-y-auto p-2">
             {#each navItems as item}
                 <button

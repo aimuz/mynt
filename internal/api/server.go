@@ -20,33 +20,37 @@ import (
 
 // Server represents the HTTP API server.
 type Server struct {
-	zfs          *zfs.Manager
-	disk         *disk.Manager
-	bus          *event.Bus
-	tm           *task.Manager
-	share        *share.Manager
-	user         *user.Manager
-	config       *store.ConfigRepo
-	notification *store.NotificationRepo
-	authConfig   *auth.Config
-	authMw       *auth.Middleware
-	mux          *http.ServeMux
+	zfs            *zfs.Manager
+	disk           *disk.Manager
+	bus            *event.Bus
+	tm             *task.Manager
+	share          *share.Manager
+	user           *user.Manager
+	config         *store.ConfigRepo
+	notification   *store.NotificationRepo
+	snapshotPolicy *store.SnapshotPolicyRepo
+	authConfig     *auth.Config
+	authMw         *auth.Middleware
+	mux            *http.ServeMux
+	onPolicyChange func() // Called when snapshot policies are modified
 }
 
 // NewServer creates a new API server.
-func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, authCfg *auth.Config) *Server {
+func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, sp *store.SnapshotPolicyRepo, authCfg *auth.Config, onPolicyChange func()) *Server {
 	s := &Server{
-		zfs:          zfs,
-		disk:         diskMgr,
-		bus:          bus,
-		tm:           tm,
-		share:        sm,
-		user:         um,
-		config:       cfg,
-		notification: notif,
-		authConfig:   authCfg,
-		authMw:       auth.NewMiddleware(authCfg),
-		mux:          http.NewServeMux(),
+		zfs:            zfs,
+		disk:           diskMgr,
+		bus:            bus,
+		tm:             tm,
+		share:          sm,
+		user:           um,
+		config:         cfg,
+		notification:   notif,
+		snapshotPolicy: sp,
+		authConfig:     authCfg,
+		authMw:         auth.NewMiddleware(authCfg),
+		mux:            http.NewServeMux(),
+		onPolicyChange: onPolicyChange,
 	}
 	s.routes()
 	return s
@@ -85,6 +89,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/snapshots", s.protected(s.handleCreateSnapshot))
 	s.mux.HandleFunc("DELETE /api/v1/snapshots/{name...}", s.protected(s.handleDestroySnapshot))
 	s.mux.HandleFunc("POST /api/v1/snapshots/rollback", s.protected(s.handleRollbackSnapshot))
+
+	// Snapshot Policy endpoints
+	s.mux.HandleFunc("GET /api/v1/snapshot-policies", s.protected(s.handleListSnapshotPolicies))
+	s.mux.HandleFunc("POST /api/v1/snapshot-policies", s.protected(s.handleCreateSnapshotPolicy))
+	s.mux.HandleFunc("PUT /api/v1/snapshot-policies/{id}", s.protected(s.handleUpdateSnapshotPolicy))
+	s.mux.HandleFunc("DELETE /api/v1/snapshot-policies/{id}", s.protected(s.handleDeleteSnapshotPolicy))
 
 	// Shares
 	s.mux.HandleFunc("GET /api/v1/shares", s.protected(s.handleListShares))
