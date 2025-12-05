@@ -67,10 +67,9 @@ interface SnapshotPolicy {
 interface CreateDatasetRequest {
     name: string;
     type?: string;
-    size?: number;
     use_case?: string;
     quota_mode?: string;
-    quota?: number;
+    quota?: number;  // size/quota in bytes (required for volumes, optional for filesystems)
     properties?: Record<string, string>;
 }
 

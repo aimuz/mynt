@@ -11,10 +11,9 @@ import (
 type CreateDatasetRequest struct {
 	Name       string            `json:"name"`       // required: pool/name
 	Type       string            `json:"type"`       // filesystem (default) or volume
-	Size       uint64            `json:"size"`       // required for volumes
 	UseCase    UseCaseTemplate   `json:"use_case"`   // template to apply
-	QuotaMode  string            `json:"quota_mode"` // "fixed", "flexible"
-	Quota      uint64            `json:"quota,omitempty"`
+	QuotaMode  string            `json:"quota_mode"` // "fixed", "flexible" (only for filesystem)
+	Quota      uint64            `json:"quota"`      // size/quota in bytes (required for volumes, optional for filesystems)
 	Properties map[string]string `json:"properties"` // optional ZFS properties (overrides template)
 }
 
@@ -37,25 +36,40 @@ func (m *Manager) CreateDataset(ctx context.Context, req CreateDatasetRequest) e
 		properties[k] = v
 	}
 
-	// Apply quota if specified
-	if req.Quota > 0 {
-		if req.QuotaMode == "fixed" {
-			properties["reservation"] = fmt.Sprintf("%d", req.Quota)
-			properties["quota"] = fmt.Sprintf("%d", req.Quota)
-		} else {
-			// Flexible mode: only set quota, no reservation
-			properties["quota"] = fmt.Sprintf("%d", req.Quota)
-		}
-	}
-
 	var err error
-
 	if req.Type == "volume" {
-		if req.Size == 0 {
-			return fmt.Errorf("size is required for volumes")
+		// For volumes, Quota is used as the volume size
+		if req.Quota == 0 {
+			return fmt.Errorf("quota (size) is required for volumes")
 		}
-		_, err = gozfs.CreateVolume(req.Name, req.Size, properties)
+
+		// Filter properties for volumes - some properties don't apply
+		volumeProps := make(map[string]string)
+		for k, v := range properties {
+			switch k {
+			case "recordsize":
+				// Convert to volblocksize for volumes
+				volumeProps["volblocksize"] = v
+			case "quota", "reservation":
+				// These don't apply to volumes, skip
+			default:
+				volumeProps[k] = v
+			}
+		}
+
+		_, err = gozfs.CreateVolume(req.Name, req.Quota, volumeProps)
 	} else {
+		// For filesystems, apply quota if specified
+		if req.Quota > 0 {
+			if req.QuotaMode == "fixed" {
+				properties["reservation"] = fmt.Sprintf("%d", req.Quota)
+				properties["quota"] = fmt.Sprintf("%d", req.Quota)
+			} else {
+				// Flexible mode: only set quota, no reservation
+				properties["quota"] = fmt.Sprintf("%d", req.Quota)
+			}
+		}
+
 		_, err = gozfs.CreateFilesystem(req.Name, properties)
 	}
 
@@ -82,12 +96,7 @@ func (m *Manager) GetDataset(ctx context.Context, name string) (*Dataset, error)
 	if dedup, err := gozfsDataset.GetProperty("dedup"); err == nil {
 		dataset.Deduplication = dedup
 	}
-	// Get quota and reservation
-	if quota, err := gozfsDataset.GetProperty("quota"); err == nil && quota != "0" && quota != "none" {
-		var q uint64
-		fmt.Sscanf(quota, "%d", &q)
-		dataset.Quota = q
-	}
+	// Get reservation
 	if res, err := gozfsDataset.GetProperty("reservation"); err == nil && res != "0" && res != "none" {
 		var r uint64
 		fmt.Sscanf(res, "%d", &r)

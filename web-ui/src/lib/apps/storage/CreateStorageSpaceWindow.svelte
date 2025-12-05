@@ -2,7 +2,6 @@
     import { api, type Pool, type CreateDatasetRequest } from "$lib/api";
     import { onMount, getContext } from "svelte";
     import {
-        X,
         ChevronRight,
         ChevronLeft,
         Check,
@@ -119,10 +118,6 @@
             // Convert quota GB to bytes
             if (quotaGB > 0) {
                 formData.quota = quotaGB * 1024 * 1024 * 1024;
-                // For volumes, size is required - use quota as size
-                if (formData.type === "volume") {
-                    formData.size = formData.quota;
-                }
             } else {
                 formData.quota = 0;
             }
