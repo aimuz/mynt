@@ -1,10 +1,11 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { api, type Pool } from "$lib/api";
+    import { api, type Pool, type SnapshotPolicy } from "$lib/api";
     import { formatBytes } from "$lib/utils";
     import { Database, HardDrive, Shield, TriangleAlert } from "@lucide/svelte";
 
     let pools = $state<Pool[]>([]);
+    let policies = $state<SnapshotPolicy[]>([]);
     let loading = $state(true);
 
     // Computed aggregates
@@ -42,8 +43,9 @@
     async function loadData() {
         try {
             pools = (await api.listPools().catch(() => [])) || [];
+            policies = (await api.listSnapshotPolicies().catch(() => [])) || [];
         } catch (err) {
-            console.error("Failed to load pools:", err);
+            console.error("Failed to load data:", err);
         } finally {
             loading = false;
         }
@@ -189,14 +191,29 @@
                         <Shield class="w-6 h-6 text-white" />
                     </div>
                     <div class="text-right">
-                        <div class="text-3xl font-bold text-foreground">-</div>
+                        <div class="text-3xl font-bold text-foreground">
+                            {policies.length}
+                        </div>
                         <div class="text-xs text-muted-foreground">
                             快照策略
                         </div>
                     </div>
                 </div>
-                <div class="text-sm text-muted-foreground text-center py-4">
-                    快照策略功能即将推出
+                <div class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-muted-foreground">已启用</span>
+                        <span
+                            class="font-semibold text-green-600 dark:text-green-400"
+                        >
+                            {policies.filter((p) => p.enabled).length}
+                        </span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-muted-foreground">已禁用</span>
+                        <span class="font-semibold text-muted-foreground">
+                            {policies.filter((p) => !p.enabled).length}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>

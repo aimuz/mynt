@@ -53,6 +53,17 @@ interface Snapshot {
     source: string; // "manual", "policy:daily", etc.
 }
 
+interface SnapshotPolicy {
+    id: number;
+    name: string;
+    schedule: string;
+    retention: string;
+    datasets: string[];
+    enabled: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
 interface CreateDatasetRequest {
     name: string;
     type?: string;
@@ -315,6 +326,31 @@ class ApiClient {
         });
     }
 
+    // Snapshot Policies
+    async listSnapshotPolicies(): Promise<SnapshotPolicy[]> {
+        return this.request('/snapshot-policies');
+    }
+
+    async createSnapshotPolicy(policy: Partial<SnapshotPolicy>): Promise<SnapshotPolicy> {
+        return this.request('/snapshot-policies', {
+            method: 'POST',
+            body: JSON.stringify(policy),
+        });
+    }
+
+    async updateSnapshotPolicy(id: number, policy: Partial<SnapshotPolicy>): Promise<SnapshotPolicy> {
+        return this.request(`/snapshot-policies/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(policy),
+        });
+    }
+
+    async deleteSnapshotPolicy(id: number): Promise<void> {
+        return this.request(`/snapshot-policies/${id}`, {
+            method: 'DELETE',
+        });
+    }
+
     // Dataset quota management
     async setDatasetQuota(datasetName: string, quota: number): Promise<void> {
         return this.request(`/datasets/quota?name=${encodeURIComponent(datasetName)}`, {
@@ -337,4 +373,4 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
-export type { User, Pool, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest };
+export type { User, Pool, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy };

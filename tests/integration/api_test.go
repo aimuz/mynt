@@ -48,8 +48,11 @@ func setupTestServer(t *testing.T) (*api.Server, *store.DB) {
 	// Notification
 	notifRepo := store.NewNotificationRepo(db)
 
-	// Server
-	srv := api.NewServer(pools, diskMgr, bus, tm, shareMgr, userMgr, configRepo, notifRepo, authConfig)
+	// Snapshot Policy
+	snapshotPolicyRepo := store.NewSnapshotPolicyRepo(db)
+
+	// Server (nil for onPolicyChange since we don't have a scheduler in tests)
+	srv := api.NewServer(pools, diskMgr, bus, tm, shareMgr, userMgr, configRepo, notifRepo, snapshotPolicyRepo, authConfig, nil)
 
 	return srv, db
 }
