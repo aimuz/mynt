@@ -2,6 +2,7 @@ package zfs
 
 import (
 	"cmp"
+	"strings"
 
 	gozfs "github.com/mistifyio/go-zfs/v4"
 )
@@ -54,6 +55,7 @@ const (
 type Dataset struct {
 	Name          string      `json:"name"`
 	Type          DatasetType `json:"type"`
+	Pool          string      `json:"pool"` // Pool name extracted from dataset name
 	Used          uint64      `json:"used"`
 	Available     uint64      `json:"available"`
 	Referenced    uint64      `json:"referenced"`
@@ -138,8 +140,10 @@ func fromGozfsDataset(d *gozfs.Dataset) Dataset {
 	if d.Type == gozfs.DatasetVolume {
 		used = d.Usedbydataset
 	}
+	poolName, _, _ := strings.Cut(d.Name, "/")
 	return Dataset{
 		Name:          d.Name,
+		Pool:          poolName,
 		Type:          DatasetType(d.Type),
 		Used:          used,
 		Available:     d.Avail,
