@@ -222,6 +222,17 @@
     }
 
     function handleContextMenu(e: MouseEvent) {
+        const target = e.target as HTMLElement;
+        if (
+            target.closest(".desktop-window") ||
+            target.closest(".desktop-dock") ||
+            target.closest(".desktop-widget") ||
+            target.closest(".desktop-menubar") ||
+            target.closest("button")
+        ) {
+            return;
+        }
+
         e.preventDefault();
         contextMenuX = e.clientX;
         contextMenuY = e.clientY;
@@ -255,7 +266,7 @@
 >
     <!-- Menu Bar (macOS style) -->
     <div
-        class="fixed top-0 left-0 right-0 glass-strong h-8 flex items-center justify-between px-4 z-50 border-b border-white/10"
+        class="desktop-menubar fixed top-0 left-0 right-0 glass-strong h-8 flex items-center justify-between px-4 z-50 border-b border-white/10"
     >
         <div class="flex items-center gap-6">
             <div class="flex items-center gap-2">

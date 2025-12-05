@@ -22,7 +22,7 @@
 </script>
 
 <div
-    class="glass-card rounded-2xl p-4 shadow-lg {sizeClasses[
+    class="desktop-widget glass-card rounded-2xl p-4 shadow-lg {sizeClasses[
         size
     ]} fade-in hover:shadow-xl transition-all"
 >

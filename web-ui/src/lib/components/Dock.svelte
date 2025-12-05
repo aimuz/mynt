@@ -14,7 +14,7 @@
     class="fixed bottom-0 left-0 right-0 flex justify-center pb-4 px-4 pointer-events-none z-50"
 >
     <div
-        class="glass-strong rounded-2xl px-3 py-2 shadow-2xl pointer-events-auto slide-up"
+        class="desktop-dock glass-strong rounded-2xl px-3 py-2 shadow-2xl pointer-events-auto slide-up"
     >
         <div class="flex items-end gap-2">
             {#each apps as app (app.id)}
