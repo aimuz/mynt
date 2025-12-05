@@ -1,6 +1,8 @@
 package zfs
 
 import (
+	"cmp"
+
 	gozfs "github.com/mistifyio/go-zfs/v4"
 )
 
@@ -132,15 +134,20 @@ func fromGozfsPool(z *gozfs.Zpool) Pool {
 
 // fromGozfsDataset converts a go-zfs Dataset to our Dataset type.
 func fromGozfsDataset(d *gozfs.Dataset) Dataset {
+	used := d.Used
+	if d.Type == gozfs.DatasetVolume {
+		used = d.Usedbydataset
+	}
 	return Dataset{
 		Name:          d.Name,
 		Type:          DatasetType(d.Type),
-		Used:          d.Used,
+		Used:          used,
 		Available:     d.Avail,
 		Referenced:    d.Referenced,
 		Mountpoint:    d.Mountpoint,
 		Compression:   d.Compression,
 		Encryption:    "", // Need to get from properties
 		Deduplication: "", // Need to get from properties
+		Quota:         cmp.Or(d.Quota, d.Volsize),
 	}
 }
