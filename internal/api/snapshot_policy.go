@@ -57,27 +57,54 @@ func (s *Server) handleUpdateSnapshotPolicy(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var policy store.SnapshotPolicy
-	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
+	// Fetch existing policy first
+	existing, err := s.snapshotPolicy.GetByID(id)
+	if err != nil {
+		http.Error(w, "policy not found", http.StatusNotFound)
+		return
+	}
+
+	// Decode partial update
+	var update struct {
+		Name      *string   `json:"name,omitempty"`
+		Schedule  *string   `json:"schedule,omitempty"`
+		Retention *string   `json:"retention,omitempty"`
+		Datasets  *[]string `json:"datasets,omitempty"`
+		Enabled   *bool     `json:"enabled,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Validate policy name format
-	if policy.Name != "" && !policyNameRegex.MatchString(policy.Name) {
-		http.Error(w, "policy name must start with a letter and contain only letters, numbers, underscores, and hyphens", http.StatusBadRequest)
-		return
+	// Merge fields
+	if update.Name != nil {
+		if !policyNameRegex.MatchString(*update.Name) {
+			http.Error(w, "policy name must start with a letter and contain only letters, numbers, underscores, and hyphens", http.StatusBadRequest)
+			return
+		}
+		existing.Name = *update.Name
+	}
+	if update.Schedule != nil {
+		existing.Schedule = *update.Schedule
+	}
+	if update.Retention != nil {
+		existing.Retention = *update.Retention
+	}
+	if update.Datasets != nil {
+		existing.Datasets = *update.Datasets
+	}
+	if update.Enabled != nil {
+		existing.Enabled = *update.Enabled
 	}
 
-	policy.ID = id
-
-	if err := s.snapshotPolicy.Update(&policy); err != nil {
+	if err := s.snapshotPolicy.Update(existing); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	s.notifyPolicyChange()
-	respondJSON(w, http.StatusOK, policy)
+	respondJSON(w, http.StatusOK, existing)
 }
 
 func (s *Server) handleDeleteSnapshotPolicy(w http.ResponseWriter, r *http.Request) {

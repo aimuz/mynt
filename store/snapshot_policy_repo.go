@@ -52,6 +52,30 @@ func (r *SnapshotPolicyRepo) Save(policy *SnapshotPolicy) error {
 	return nil
 }
 
+// GetByID returns a snapshot policy by ID.
+func (r *SnapshotPolicyRepo) GetByID(id int64) (*SnapshotPolicy, error) {
+	var p SnapshotPolicy
+	var datasetsJSON string
+
+	err := r.db.conn.QueryRow(`
+		SELECT id, name, schedule, retention, datasets, enabled, created_at, updated_at
+		FROM snapshot_policies WHERE id = ?
+	`, id).Scan(&p.ID, &p.Name, &p.Schedule, &p.Retention, &datasetsJSON, &p.Enabled, &p.CreatedAt, &p.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if datasetsJSON != "" {
+		_ = json.Unmarshal([]byte(datasetsJSON), &p.Datasets)
+	}
+	if p.Datasets == nil {
+		p.Datasets = []string{}
+	}
+
+	return &p, nil
+}
+
 // Update updates an existing snapshot policy.
 func (r *SnapshotPolicyRepo) Update(policy *SnapshotPolicy) error {
 	policy.UpdatedAt = time.Now()

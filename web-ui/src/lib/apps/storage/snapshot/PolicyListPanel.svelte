@@ -96,6 +96,18 @@
             alert("删除策略失败: " + err);
         }
     }
+
+    async function handleTogglePolicy(policy: SnapshotPolicy) {
+        try {
+            await api.updateSnapshotPolicy(policy.id, {
+                enabled: !policy.enabled,
+            });
+            onRefresh();
+        } catch (err) {
+            console.error("Failed to toggle policy:", err);
+            alert("更新策略失败: " + err);
+        }
+    }
 </script>
 
 <div class="flex-1 flex flex-col">
@@ -286,23 +298,34 @@
                                 <div
                                     class="flex items-center gap-2 mt-1 text-sm text-muted-foreground"
                                 >
-                                    <span
-                                        class={policy.enabled
-                                            ? "text-green-500"
-                                            : "text-muted-foreground"}
-                                    >
-                                        ● {policy.enabled ? "已启用" : "已禁用"}
-                                    </span>
-                                    <span>•</span>
                                     <span>{policy.schedule}</span>
                                 </div>
                             </div>
-                            <button
-                                onclick={() => handleDeletePolicy(policy.id)}
-                                class="p-2 text-muted-foreground hover:text-red-500 transition-colors"
-                            >
-                                <Trash2 class="w-4 h-4" />
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <!-- Toggle Switch -->
+                                <button
+                                    onclick={() => handleTogglePolicy(policy)}
+                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {policy.enabled
+                                        ? 'bg-green-500'
+                                        : 'bg-muted'}"
+                                    title={policy.enabled
+                                        ? "点击禁用"
+                                        : "点击启用"}
+                                >
+                                    <span
+                                        class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {policy.enabled
+                                            ? 'translate-x-6'
+                                            : 'translate-x-1'}"
+                                    ></span>
+                                </button>
+                                <button
+                                    onclick={() =>
+                                        handleDeletePolicy(policy.id)}
+                                    class="p-2 text-muted-foreground hover:text-red-500 transition-colors"
+                                >
+                                    <Trash2 class="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                         <div class="space-y-2 text-sm">
                             <div class="flex justify-between">
