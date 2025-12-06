@@ -168,7 +168,7 @@
 
 <div
     bind:this={windowEl}
-    class="fixed window-shadow rounded-xl overflow-hidden flex flex-col"
+    class="fixed window-shadow rounded-xl overflow-hidden flex flex-col desktop-window"
     onpointerdown={() => onFocus?.()}
     style:left="0"
     style:top="0"
