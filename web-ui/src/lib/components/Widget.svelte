@@ -24,7 +24,7 @@
 <div
     class="glass-card rounded-2xl p-4 shadow-lg {sizeClasses[
         size
-    ]} fade-in hover:shadow-xl transition-all"
+    ]} fade-in hover:shadow-xl transition-all desktop-widget"
 >
     <div class="flex items-center gap-2 mb-3">
         {#if icon}

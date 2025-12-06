@@ -222,6 +222,16 @@
     }
 
     function handleContextMenu(e: MouseEvent) {
+        // Check if target is part of excluded UI
+        const target = e.target as HTMLElement;
+        if (
+            target.closest(
+                ".desktop-window, .desktop-dock, .desktop-widget, .desktop-menubar, .desktop-icon",
+            )
+        ) {
+            return;
+        }
+
         e.preventDefault();
         contextMenuX = e.clientX;
         contextMenuY = e.clientY;
@@ -255,7 +265,7 @@
 >
     <!-- Menu Bar (macOS style) -->
     <div
-        class="fixed top-0 left-0 right-0 glass-strong h-8 flex items-center justify-between px-4 z-50 border-b border-white/10"
+        class="fixed top-0 left-0 right-0 glass-strong h-8 flex items-center justify-between px-4 z-50 border-b border-white/10 desktop-menubar"
     >
         <div class="flex items-center gap-6">
             <div class="flex items-center gap-2">
@@ -334,7 +344,7 @@
                 <div class="flex items-center justify-center">
                     <button
                         onclick={app.onClick}
-                        class="flex flex-col w-28 h-28 items-center justify-center gap-1 p-3 rounded-lg hover:bg-white/10 active:bg-white/20 transition-all group fade-in"
+                        class="flex flex-col w-28 h-28 items-center justify-center gap-1 p-3 rounded-lg hover:bg-white/10 active:bg-white/20 transition-all group fade-in desktop-icon"
                         style="animation-delay: {i * 50}ms;"
                     >
                         <div
