@@ -7,6 +7,7 @@
         Users,
         Bell,
         Activity,
+        ImageIcon,
     } from "@lucide/svelte";
     import { setContext } from "svelte";
     import Dock, { type DesktopApp } from "$lib/components/Dock.svelte";
@@ -41,13 +42,16 @@
             zIndex: number;
             x: number;
             y: number;
+            width?: number;
+            height?: number;
+            minWidth?: number;
+            minHeight?: number;
         }>
     >([]);
     let currentTime = $state(new Date());
     let showContextMenu = $state(false);
     let contextMenuX = $state(0);
     let contextMenuY = $state(0);
-    let showWallpaperSelector = $state(false);
     let nextZIndex = $state(100);
 
     // Update time every second
@@ -148,6 +152,15 @@
         title: string,
         icon: any,
         component: any | (() => { component: any; props?: any }),
+        options: {
+            props?: any;
+            width?: number;
+            height?: number;
+            minWidth?: number;
+            minHeight?: number;
+            x?: number;
+            y?: number;
+        } = {},
     ) {
         // Check if window is already open
         const existingWindow = activeWindows.find((w) => w.id === id);
@@ -157,6 +170,16 @@
         }
 
         const zIndex = nextZIndex++;
+        const { width, height, minWidth, minHeight, props } = options;
+        let { x, y } = options;
+
+        if (x === undefined || y === undefined) {
+            // Calculate position based on existing windows to cascade them
+            // We use a simple offset based on the number of active windows
+            const offset = activeWindows.length * 30;
+            x = 100 + offset;
+            y = 100 + offset;
+        }
 
         // Check if component is a factory function
         if (typeof component === "function" && component.length === 0) {
@@ -167,11 +190,6 @@
                     typeof result === "object" &&
                     "component" in result
                 ) {
-                    // Calculate position
-                    const offset = activeWindows.length * 30;
-                    const x = 100 + offset;
-                    const y = 100 + offset;
-
                     activeWindows = [
                         ...activeWindows,
                         {
@@ -179,10 +197,14 @@
                             title,
                             icon,
                             component: result.component,
-                            props: result.props,
+                            props: { ...result.props, ...props },
                             zIndex,
                             x,
                             y,
+                            width,
+                            height,
+                            minWidth,
+                            minHeight,
                         },
                     ];
                     return;
@@ -192,17 +214,23 @@
             }
         }
 
-        // Calculate position based on existing windows to cascade them
-        // We use a simple offset based on the number of active windows
-        // This is calculated ONCE when the window opens, so it doesn't shift when others close
-        const offset = activeWindows.length * 30;
-        const x = 100 + offset;
-        const y = 100 + offset;
-
         // Direct component
         activeWindows = [
             ...activeWindows,
-            { id, title, icon, component, zIndex, x, y },
+            {
+                id,
+                title,
+                icon,
+                component,
+                zIndex,
+                x,
+                y,
+                props,
+                width,
+                height,
+                minWidth,
+                minHeight,
+            },
         ];
     }
 
@@ -233,7 +261,19 @@
     }
 
     function openWallpaperSelector() {
-        showWallpaperSelector = true;
+        openWindow(
+            "wallpaper-selector",
+            "Change Wallpaper",
+            ImageIcon,
+            WallpaperSelector,
+            {
+                props: { onClose: () => closeWindow("wallpaper-selector") },
+                minWidth: 600,
+                minHeight: 400,
+                width: 800,
+                height: 600,
+            },
+        );
         closeContextMenu();
     }
 
@@ -365,6 +405,10 @@
             onFocus={() => bringToFront(window.id)}
             x={window.x}
             y={window.y}
+            width={window.width}
+            height={window.height}
+            minWidth={window.minWidth}
+            minHeight={window.minHeight}
         >
             {#snippet children()}
                 {#if window.component}
@@ -411,8 +455,4 @@
         </div>
     {/if}
 
-    <!-- Wallpaper Selector -->
-    {#if showWallpaperSelector}
-        <WallpaperSelector onClose={() => (showWallpaperSelector = false)} />
-    {/if}
 </div>
