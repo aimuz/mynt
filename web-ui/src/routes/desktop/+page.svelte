@@ -32,6 +32,9 @@
         }
     });
 
+    const DEFAULT_WINDOW_WIDTH = 800;
+    const DEFAULT_WINDOW_HEIGHT = 600;
+
     let activeWindows = $state<
         Array<{
             id: string;
@@ -158,6 +161,17 @@
 
         const zIndex = nextZIndex++;
 
+        // Calculate position based on existing windows to cascade them
+        const offset = activeWindows.length * 30;
+
+        let x = 100 + offset;
+        let y = 100 + offset;
+
+        if (typeof window !== "undefined") {
+            x = Math.max(0, (window.innerWidth - DEFAULT_WINDOW_WIDTH) / 2) + offset;
+            y = Math.max(0, (window.innerHeight - DEFAULT_WINDOW_HEIGHT) / 2) + offset;
+        }
+
         // Check if component is a factory function
         if (typeof component === "function" && component.length === 0) {
             try {
@@ -167,11 +181,6 @@
                     typeof result === "object" &&
                     "component" in result
                 ) {
-                    // Calculate position
-                    const offset = activeWindows.length * 30;
-                    const x = 100 + offset;
-                    const y = 100 + offset;
-
                     activeWindows = [
                         ...activeWindows,
                         {
@@ -191,13 +200,6 @@
                 // Not a factory, fall through to direct component
             }
         }
-
-        // Calculate position based on existing windows to cascade them
-        // We use a simple offset based on the number of active windows
-        // This is calculated ONCE when the window opens, so it doesn't shift when others close
-        const offset = activeWindows.length * 30;
-        const x = 100 + offset;
-        const y = 100 + offset;
 
         // Direct component
         activeWindows = [
