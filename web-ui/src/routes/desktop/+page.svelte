@@ -7,6 +7,7 @@
         Users,
         Bell,
         Activity,
+        Image,
     } from "@lucide/svelte";
     import { setContext } from "svelte";
     import Dock, { type DesktopApp } from "$lib/components/Dock.svelte";
@@ -47,7 +48,6 @@
     let showContextMenu = $state(false);
     let contextMenuX = $state(0);
     let contextMenuY = $state(0);
-    let showWallpaperSelector = $state(false);
     let nextZIndex = $state(100);
 
     // Update time every second
@@ -233,7 +233,12 @@
     }
 
     function openWallpaperSelector() {
-        showWallpaperSelector = true;
+        openWindow("wallpaper", "Change Wallpaper", Image, () => ({
+            component: WallpaperSelector,
+            props: {
+                onClose: () => closeWindow("wallpaper"),
+            },
+        }));
         closeContextMenu();
     }
 
@@ -411,8 +416,4 @@
         </div>
     {/if}
 
-    <!-- Wallpaper Selector -->
-    {#if showWallpaperSelector}
-        <WallpaperSelector onClose={() => (showWallpaperSelector = false)} />
-    {/if}
 </div>
