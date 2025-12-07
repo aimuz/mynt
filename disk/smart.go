@@ -6,7 +6,18 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
+)
+
+// SMART attribute IDs of interest.
+const (
+	attrReallocatedSectors = 5
+	attrPowerOnHours       = 9
+	attrTemperature        = 194
+	attrPendingSectors     = 197
+	attrUncorrectable      = 198
 )
 
 // Attribute represents a single S.M.A.R.T. attribute.
@@ -28,6 +39,36 @@ type Report struct {
 	CheckedAt  time.Time   `json:"checked_at"`
 }
 
+// TestType represents a S.M.A.R.T. self-test type.
+type TestType string
+
+const (
+	TestShort TestType = "short"
+	TestLong  TestType = "long"
+)
+
+// TestStatus represents the status of a S.M.A.R.T. self-test.
+type TestStatus struct {
+	Running    bool   `json:"running"`
+	Type       string `json:"type,omitempty"`
+	Progress   int    `json:"progress,omitempty"`
+	LastResult string `json:"last_result,omitempty"`
+}
+
+// DetailedReport includes extended SMART data for disk details view.
+type DetailedReport struct {
+	Disk                string      `json:"disk"`
+	Passed              bool        `json:"passed"`
+	Attributes          []Attribute `json:"attributes"`
+	CheckedAt           time.Time   `json:"checked_at"`
+	PowerOnHours        int64       `json:"power_on_hours"`
+	PowerCycleCount     int64       `json:"power_cycle_count"`
+	ReallocatedSectors  int64       `json:"reallocated_sectors"`
+	PendingSectors      int64       `json:"pending_sectors"`
+	UncorrectableErrors int64       `json:"uncorrectable_errors"`
+	Temperature         int         `json:"temperature"`
+}
+
 // smartctlOutput represents the JSON output from smartctl.
 type smartctlOutput struct {
 	SmartStatus struct {
@@ -47,76 +88,202 @@ type smartctlOutput struct {
 			} `json:"raw"`
 		} `json:"table"`
 	} `json:"ata_smart_attributes"`
+	Temperature struct {
+		Current int `json:"current"`
+	} `json:"temperature"`
+	PowerOnTime struct {
+		Hours int64 `json:"hours"`
+	} `json:"power_on_time"`
+	PowerCycleCount     int64 `json:"power_cycle_count"`
+	AtaSmartSelfTestLog struct {
+		Standard struct {
+			Table []struct {
+				Status struct {
+					String string `json:"string"`
+				} `json:"status"`
+			} `json:"table"`
+		} `json:"standard"`
+	} `json:"ata_smart_self_test_log"`
+	AtaSmartData struct {
+		SelfTest struct {
+			Status struct {
+				Value            int    `json:"value"`
+				String           string `json:"string"`
+				RemainingPercent int    `json:"remaining_percent"`
+			} `json:"status"`
+		} `json:"self_test"`
+	} `json:"ata_smart_data"`
 }
 
-// Smart retrieves S.M.A.R.T. data for a disk using smartctl.
-func Smart(ctx context.Context, name string) (*Report, error) {
-	// On macOS, return mock data for development
+// Smart retrieves S.M.A.R.T. data for a disk.
+func (m *Manager) Smart(ctx context.Context, name string) (*Report, error) {
 	if runtime.GOOS == "darwin" {
-		return smartMock(name), nil
+		return mockReport(name), nil
 	}
 
-	// On Linux, use smartctl
-	m := NewManager()
-	return m.smartLinux(ctx, name)
-}
-
-// smartLinux executes smartctl and parses the output.
-func (m *Manager) smartLinux(ctx context.Context, name string) (*Report, error) {
-	// Execute smartctl with JSON output
-	// -a: all information
-	// -j: JSON format
-	output, err := m.exec.CombinedOutput(ctx, "smartctl", "-a", "-j", "/dev/"+name)
-
-	// smartctl returns non-zero exit code even on success in some cases
-	// We check the JSON output instead
+	out, err := m.runSmartctl(ctx, name)
 	if err != nil {
-		// Check if it's just exit code issue
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			// Exit codes 0-3 are acceptable (device opened, smart enabled, etc)
-			if exitErr.ExitCode() > 3 {
-				return nil, fmt.Errorf("smartctl failed: %w", err)
-			}
-		} else {
-			return nil, fmt.Errorf("smartctl execution failed: %w", err)
-		}
+		return nil, err
 	}
 
-	var result smartctlOutput
-	if err := json.Unmarshal(output, &result); err != nil {
-		return nil, fmt.Errorf("parse smartctl output: %w", err)
+	var data smartctlOutput
+	if err := json.Unmarshal(out, &data); err != nil {
+		return nil, fmt.Errorf("parse smartctl: %w", err)
 	}
 
-	// Convert to our Report format
-	report := &Report{
+	r := &Report{
 		Disk:      name,
-		Passed:    result.SmartStatus.Passed,
+		Passed:    data.SmartStatus.Passed,
 		CheckedAt: time.Now(),
 	}
-
-	// Convert attributes
-	for _, attr := range result.AtaSmartAttributes.Table {
+	for _, a := range data.AtaSmartAttributes.Table {
 		status := "OK"
-		if attr.WhenFailed != "" && attr.WhenFailed != "-" {
+		if a.WhenFailed != "" && a.WhenFailed != "-" {
 			status = "FAILING"
 		}
-
-		report.Attributes = append(report.Attributes, Attribute{
-			ID:     attr.ID,
-			Name:   attr.Name,
-			Value:  attr.Value,
-			Worst:  attr.Worst,
-			Thresh: attr.Thresh,
-			Raw:    attr.Raw.String,
+		r.Attributes = append(r.Attributes, Attribute{
+			ID:     a.ID,
+			Name:   a.Name,
+			Value:  a.Value,
+			Worst:  a.Worst,
+			Thresh: a.Thresh,
+			Raw:    a.Raw.String,
 			Status: status,
 		})
 	}
-
-	return report, nil
+	return r, nil
 }
 
-// smartMock returns mock data for development (macOS).
-func smartMock(name string) *Report {
+// SmartDetails retrieves comprehensive SMART data.
+func (m *Manager) SmartDetails(ctx context.Context, name string) (*DetailedReport, error) {
+	if runtime.GOOS == "darwin" {
+		return mockDetailedReport(name), nil
+	}
+
+	out, err := m.runSmartctl(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	var data smartctlOutput
+	if err := json.Unmarshal(out, &data); err != nil {
+		return nil, fmt.Errorf("parse smartctl: %w", err)
+	}
+
+	r := &DetailedReport{
+		Disk:            name,
+		Passed:          data.SmartStatus.Passed,
+		CheckedAt:       time.Now(),
+		PowerOnHours:    data.PowerOnTime.Hours,
+		PowerCycleCount: data.PowerCycleCount,
+		Temperature:     data.Temperature.Current,
+	}
+
+	for _, a := range data.AtaSmartAttributes.Table {
+		status := "OK"
+		if a.WhenFailed != "" && a.WhenFailed != "-" {
+			status = "FAILING"
+		}
+		r.Attributes = append(r.Attributes, Attribute{
+			ID:     a.ID,
+			Name:   a.Name,
+			Value:  a.Value,
+			Worst:  a.Worst,
+			Thresh: a.Thresh,
+			Raw:    a.Raw.String,
+			Status: status,
+		})
+
+		switch a.ID {
+		case attrReallocatedSectors:
+			r.ReallocatedSectors = a.Raw.Value
+		case attrPowerOnHours:
+			if r.PowerOnHours == 0 {
+				r.PowerOnHours = a.Raw.Value
+			}
+		case attrTemperature:
+			if r.Temperature == 0 {
+				r.Temperature = parseTemperature(a.Raw.String)
+			}
+		case attrPendingSectors:
+			r.PendingSectors = a.Raw.Value
+		case attrUncorrectable:
+			r.UncorrectableErrors = a.Raw.Value
+		}
+	}
+	return r, nil
+}
+
+// SmartTest starts a S.M.A.R.T. self-test.
+func (m *Manager) SmartTest(ctx context.Context, name string, typ TestType) error {
+	if runtime.GOOS == "darwin" {
+		return nil
+	}
+
+	_, err := m.exec.CombinedOutput(ctx, "smartctl", "-t", string(typ), "/dev/"+name)
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() <= 3 {
+			return nil
+		}
+		return fmt.Errorf("start smart test: %w", err)
+	}
+	return nil
+}
+
+// SmartTestStatus gets the current self-test status.
+func (m *Manager) SmartTestStatus(ctx context.Context, name string) (*TestStatus, error) {
+	if runtime.GOOS == "darwin" {
+		return &TestStatus{LastResult: "Completed without error"}, nil
+	}
+
+	out, err := m.runSmartctl(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	var data smartctlOutput
+	if err := json.Unmarshal(out, &data); err != nil {
+		return nil, fmt.Errorf("parse smartctl: %w", err)
+	}
+
+	s := &TestStatus{}
+	st := data.AtaSmartData.SelfTest.Status
+	if st.Value != 0 && st.RemainingPercent > 0 {
+		s.Running = true
+		s.Progress = 100 - st.RemainingPercent
+		s.Type = st.String
+	}
+	if len(data.AtaSmartSelfTestLog.Standard.Table) > 0 {
+		s.LastResult = data.AtaSmartSelfTestLog.Standard.Table[0].Status.String
+	}
+	return s, nil
+}
+
+// runSmartctl executes smartctl and handles exit codes.
+func (m *Manager) runSmartctl(ctx context.Context, name string) ([]byte, error) {
+	out, err := m.exec.CombinedOutput(ctx, "smartctl", "-a", "-j", "/dev/"+name)
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() <= 3 {
+			return out, nil
+		}
+		return nil, fmt.Errorf("smartctl: %w", err)
+	}
+	return out, nil
+}
+
+// parseTemperature extracts temperature from SMART raw string.
+func parseTemperature(raw string) int {
+	parts := strings.Fields(raw)
+	if len(parts) > 0 {
+		if t, err := strconv.Atoi(parts[0]); err == nil {
+			return t
+		}
+	}
+	return 0
+}
+
+// mockReport returns mock data for macOS development.
+func mockReport(name string) *Report {
 	return &Report{
 		Disk:      name,
 		Passed:    true,
@@ -132,16 +299,38 @@ func smartMock(name string) *Report {
 	}
 }
 
-// CheckHealth runs a S.M.A.R.T. check and returns an error if the disk is failing.
-func CheckHealth(ctx context.Context, name string) error {
-	report, err := Smart(ctx, name)
+// mockDetailedReport returns mock detailed data for macOS development.
+func mockDetailedReport(name string) *DetailedReport {
+	return &DetailedReport{
+		Disk:                name,
+		Passed:              true,
+		CheckedAt:           time.Now(),
+		PowerOnHours:        1234,
+		PowerCycleCount:     42,
+		Temperature:         36,
+		ReallocatedSectors:  0,
+		PendingSectors:      0,
+		UncorrectableErrors: 0,
+		Attributes: []Attribute{
+			{ID: 1, Name: "Raw_Read_Error_Rate", Value: 100, Worst: 100, Thresh: 51, Raw: "0", Status: "OK"},
+			{ID: 5, Name: "Reallocated_Sector_Ct", Value: 100, Worst: 100, Thresh: 10, Raw: "0", Status: "OK"},
+			{ID: 9, Name: "Power_On_Hours", Value: 99, Worst: 99, Thresh: 0, Raw: "1234", Status: "OK"},
+			{ID: 12, Name: "Power_Cycle_Count", Value: 100, Worst: 100, Thresh: 0, Raw: "42", Status: "OK"},
+			{ID: 194, Name: "Temperature_Celsius", Value: 64, Worst: 64, Thresh: 0, Raw: "36", Status: "OK"},
+			{ID: 197, Name: "Current_Pending_Sector", Value: 100, Worst: 100, Thresh: 0, Raw: "0", Status: "OK"},
+			{ID: 198, Name: "Offline_Uncorrectable", Value: 100, Worst: 100, Thresh: 0, Raw: "0", Status: "OK"},
+		},
+	}
+}
+
+// CheckHealth returns an error if the disk is failing S.M.A.R.T.
+func (m *Manager) CheckHealth(ctx context.Context, name string) error {
+	r, err := m.Smart(ctx, name)
 	if err != nil {
-		return fmt.Errorf("smart check failed: %w", err)
+		return err
 	}
-
-	if !report.Passed {
-		return fmt.Errorf("disk %s is failing S.M.A.R.T. check", name)
+	if !r.Passed {
+		return fmt.Errorf("disk %s failing S.M.A.R.T.", name)
 	}
-
 	return nil
 }

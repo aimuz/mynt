@@ -97,17 +97,23 @@ func main() {
 	// Monitoring with disk repository
 	diskRepo := store.NewDiskRepo(db)
 
-	// Disk Manager
+	// Disk Manager with SMART cache
 	var diskOpts []disk.ManagerOption
 	if *enableLoopDevices {
 		diskOpts = append(diskOpts, disk.WithLoopDevices())
 	}
+	diskOpts = append(diskOpts, disk.WithSmartCache(diskRepo.NewSmartCache()))
 	diskMgr := disk.NewManager(diskOpts...)
 
+	// Scanners with different intervals:
+	// - DiskScanner: fast disk detection (every 30s)
+	// - SmartScanner: SMART data collection (every 5 min, throttled internally)
+	// - ZFSScanner: pool status (every 30s)
 	diskScanner := monitor.NewDiskScanner(bus, diskRepo, diskMgr)
+	smartScanner := monitor.NewSmartScanner(bus, diskRepo, diskMgr, 5*time.Minute)
 	zfsScanner := monitor.NewZFSScanner(bus, pools)
 	mon := monitor.New(
-		[]monitor.Scanner{diskScanner, zfsScanner},
+		[]monitor.Scanner{diskScanner, smartScanner, zfsScanner},
 		30*time.Second,
 	)
 
@@ -115,7 +121,7 @@ func main() {
 	mon.Start(ctx)
 	defer mon.Stop()
 
-	logger.Info("monitoring started", "scanners", 2, "interval_sec", 30)
+	logger.Info("monitoring started", "scanners", 3, "interval_sec", 30, "smart_interval_min", 5)
 
 	// Snapshot Policy Scheduler
 	snapshotScheduler := scheduler.New(snapshotPolicyRepo, pools)
@@ -133,7 +139,7 @@ func main() {
 	}
 
 	// API Server with authentication
-	srv := api.NewServer(pools, diskMgr, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, snapshotPolicyRepo, authConfig, func() { _ = snapshotScheduler.Reload() })
+	srv := api.NewServer(pools, diskMgr, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, snapshotPolicyRepo, diskRepo, authConfig, func() { _ = snapshotScheduler.Reload() })
 	httpSrv := &http.Server{
 		Addr:    *addr,
 		Handler: srv,

@@ -3,13 +3,14 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.aimuz.me/mynt/disk"
 	"go.aimuz.me/mynt/event"
 	"go.aimuz.me/mynt/store"
 )
 
-// DiskScanner monitors disk changes and SMART status.
+// DiskScanner monitors disk changes (fast, runs frequently).
 type DiskScanner struct {
 	bus     *event.Bus
 	repo    *store.DiskRepo
@@ -25,23 +26,20 @@ func NewDiskScanner(bus *event.Bus, repo *store.DiskRepo, diskMgr *disk.Manager)
 	}
 }
 
-// Scan checks for disk changes and publishes events.
+// Scan checks for disk changes (does NOT collect SMART data).
 func (s *DiskScanner) Scan(ctx context.Context) error {
-	// Get current physical disks
-	current, err := s.diskMgr.List(ctx)
+	current, err := s.diskMgr.ListBasic(ctx)
 	if err != nil {
-		return fmt.Errorf("disk scan failed: %w", err)
+		return fmt.Errorf("disk scan: %w", err)
 	}
 
-	// Get known disks from database
 	known, err := s.repo.ListAttached()
 	if err != nil {
-		return fmt.Errorf("failed to list known disks: %w", err)
+		return fmt.Errorf("list known disks: %w", err)
 	}
 
-	// Build maps for comparison
-	currentMap := make(map[string]disk.Info)     // key: serial
-	knownMap := make(map[string]store.DiskState) // key: serial
+	currentMap := make(map[string]disk.Info)
+	knownMap := make(map[string]store.DiskState)
 
 	for _, d := range current {
 		currentMap[d.Serial] = d
@@ -50,49 +48,83 @@ func (s *DiskScanner) Scan(ctx context.Context) error {
 		knownMap[d.Serial] = d
 	}
 
-	// Check for new disks
 	for serial, d := range currentMap {
 		if _, exists := knownMap[serial]; !exists {
-			// New disk detected
-			s.bus.Publish(event.Event{
-				Type: event.DiskAdded,
-				Data: d,
-			})
+			s.bus.Publish(event.Event{Type: event.DiskAdded, Data: d})
 		}
-
-		// Save/update disk state
 		if err := s.repo.Save(d); err != nil {
-			// Log error but continue
 			fmt.Printf("Warning: failed to save disk %s: %v\n", d.Name, err)
-		}
-
-		// Check SMART health
-		if err := disk.CheckHealth(ctx, d.Name); err != nil {
-			s.bus.Publish(event.Event{
-				Type: event.SmartFailed,
-				Data: map[string]any{
-					"disk":  d,
-					"error": err.Error(),
-				},
-			})
 		}
 	}
 
-	// Check for removed disks
 	for serial, d := range knownMap {
 		if _, exists := currentMap[serial]; !exists {
-			// Disk removed
-			s.bus.Publish(event.Event{
-				Type: event.DiskRemoved,
-				Data: d.ToInfo(),
-			})
-
-			// Mark as detached in database
+			s.bus.Publish(event.Event{Type: event.DiskRemoved, Data: d.ToInfo()})
 			if err := s.repo.MarkDetached(d.Name, d.Serial); err != nil {
 				fmt.Printf("Warning: failed to mark disk %s as detached: %v\n", d.Name, err)
 			}
+			s.repo.DeleteSmart(d.Name)
 		}
 	}
 
 	return nil
+}
+
+// SmartScanner collects SMART data (slow, runs less frequently).
+type SmartScanner struct {
+	bus        *event.Bus
+	repo       *store.DiskRepo
+	diskMgr    *disk.Manager
+	lastUpdate time.Time
+	interval   time.Duration
+}
+
+// NewSmartScanner creates a SMART data collector.
+// interval specifies how often to actually collect SMART data.
+func NewSmartScanner(bus *event.Bus, repo *store.DiskRepo, diskMgr *disk.Manager, interval time.Duration) *SmartScanner {
+	return &SmartScanner{
+		bus:      bus,
+		repo:     repo,
+		diskMgr:  diskMgr,
+		interval: interval,
+	}
+}
+
+// Scan collects SMART data for all attached disks.
+func (s *SmartScanner) Scan(ctx context.Context) error {
+	// Check if enough time has passed since last update
+	if time.Since(s.lastUpdate) < s.interval {
+		return nil
+	}
+	s.lastUpdate = time.Now()
+
+	disks, err := s.diskMgr.ListBasic(ctx)
+	if err != nil {
+		return fmt.Errorf("smart scan: %w", err)
+	}
+
+	for _, d := range disks {
+		s.collectSmart(ctx, d.Name)
+	}
+
+	return nil
+}
+
+func (s *SmartScanner) collectSmart(ctx context.Context, name string) {
+	report, err := s.diskMgr.SmartDetails(ctx, name)
+	if err != nil {
+		return
+	}
+
+	if err := s.repo.SaveSmart(report); err != nil {
+		fmt.Printf("Warning: failed to cache SMART for %s: %v\n", name, err)
+		return
+	}
+
+	if !report.Passed {
+		s.bus.Publish(event.Event{
+			Type: event.SmartFailed,
+			Data: map[string]any{"disk": name, "report": report},
+		})
+	}
 }

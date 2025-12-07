@@ -1,3 +1,4 @@
 .idea/
 mynt.db
-myntd
+/myntd
+/cmd/myntd/myntd
