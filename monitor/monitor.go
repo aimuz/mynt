@@ -35,6 +35,8 @@ func New(scanners []Scanner, interval time.Duration) *Monitor {
 func (m *Monitor) Start(ctx context.Context) {
 	ctx, m.cancel = context.WithCancel(ctx)
 
+	logger.Info("monitoring started", "scanners", len(m.scanners), "interval", m.interval)
+
 	m.wg.Go(func() {
 		m.run(ctx)
 	})

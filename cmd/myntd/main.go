@@ -112,16 +112,12 @@ func main() {
 	diskScanner := monitor.NewDiskScanner(bus, diskRepo, diskMgr)
 	smartScanner := monitor.NewSmartScanner(bus, diskRepo, diskMgr, 5*time.Minute)
 	zfsScanner := monitor.NewZFSScanner(bus, pools)
-	mon := monitor.New(
-		[]monitor.Scanner{diskScanner, smartScanner, zfsScanner},
-		30*time.Second,
-	)
+	scanners := []monitor.Scanner{diskScanner, smartScanner, zfsScanner}
+	mon := monitor.New(scanners, 30*time.Second)
 
 	ctx := context.Background()
 	mon.Start(ctx)
 	defer mon.Stop()
-
-	logger.Info("monitoring started", "scanners", 3, "interval_sec", 30, "smart_interval_min", 5)
 
 	// Snapshot Policy Scheduler
 	snapshotScheduler := scheduler.New(snapshotPolicyRepo, pools)

@@ -99,7 +99,6 @@ func (s *SmartScanner) Scan(ctx context.Context) error {
 	if time.Since(s.lastUpdate) < s.interval {
 		return nil
 	}
-	s.lastUpdate = time.Now()
 
 	disks, err := s.diskMgr.ListBasic(ctx)
 	if err != nil {
@@ -109,6 +108,10 @@ func (s *SmartScanner) Scan(ctx context.Context) error {
 	for _, d := range disks {
 		s.collectSmart(ctx, d.Name)
 	}
+
+	// Only update timestamp after successful collection
+	// This allows quick retry on transient failures
+	s.lastUpdate = time.Now()
 
 	return nil
 }
