@@ -164,13 +164,8 @@
         // Calculate position based on existing windows to cascade them
         const offset = activeWindows.length * 30;
 
-        let x = 100 + offset;
-        let y = 100 + offset;
-
-        if (typeof window !== "undefined") {
-            x = Math.max(0, (window.innerWidth - DEFAULT_WINDOW_WIDTH) / 2) + offset;
-            y = Math.max(0, (window.innerHeight - DEFAULT_WINDOW_HEIGHT) / 2) + offset;
-        }
+        const x = Math.max(0, (window.innerWidth - DEFAULT_WINDOW_WIDTH) / 2) + offset;
+        const y = Math.max(0, (window.innerHeight - DEFAULT_WINDOW_HEIGHT) / 2) + offset;
 
         // Check if component is a factory function
         if (typeof component === "function" && component.length === 0) {
