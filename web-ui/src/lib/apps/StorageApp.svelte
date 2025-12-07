@@ -40,7 +40,7 @@
         { id: "overview", name: "总览", icon: House },
         { id: "pools", name: "存储池", icon: Database },
         { id: "spaces", name: "存储空间", icon: Disc },
-        { id: "disks", name: "储存设备", icon: HardDrive },
+        { id: "disks", name: "磁盘", icon: HardDrive },
         { id: "snapshots", name: "快照", icon: Camera },
         { id: "tasks", name: "任务", icon: Activity },
     ];

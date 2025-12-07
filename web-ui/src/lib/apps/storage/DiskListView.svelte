@@ -143,7 +143,7 @@
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
         <div>
-            <h2 class="text-2xl font-bold text-foreground">储存设备</h2>
+            <h2 class="text-2xl font-bold text-foreground">磁盘</h2>
             <p class="text-sm text-muted-foreground mt-1">
                 查看物理磁盘健康状态和 S.M.A.R.T. 信息
             </p>
