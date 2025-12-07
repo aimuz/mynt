@@ -7,6 +7,7 @@ import (
 
 	"go.aimuz.me/mynt/disk"
 	"go.aimuz.me/mynt/event"
+	"go.aimuz.me/mynt/logger"
 	"go.aimuz.me/mynt/store"
 )
 
@@ -53,7 +54,7 @@ func (s *DiskScanner) Scan(ctx context.Context) error {
 			s.bus.Publish(event.Event{Type: event.DiskAdded, Data: d})
 		}
 		if err := s.repo.Save(d); err != nil {
-			fmt.Printf("Warning: failed to save disk %s: %v\n", d.Name, err)
+			logger.Warn("failed to save disk", "disk", d.Name, "error", err)
 		}
 	}
 
@@ -61,9 +62,11 @@ func (s *DiskScanner) Scan(ctx context.Context) error {
 		if _, exists := currentMap[serial]; !exists {
 			s.bus.Publish(event.Event{Type: event.DiskRemoved, Data: d.ToInfo()})
 			if err := s.repo.MarkDetached(d.Name, d.Serial); err != nil {
-				fmt.Printf("Warning: failed to mark disk %s as detached: %v\n", d.Name, err)
+				logger.Warn("failed to mark disk as detached", "disk", d.Name, "error", err)
 			}
-			s.repo.DeleteSmart(d.Name)
+			if err := s.repo.DeleteSmart(d.Name); err != nil {
+				logger.Debug("failed to delete SMART cache", "disk", d.Name, "error", err)
+			}
 		}
 	}
 
@@ -113,11 +116,13 @@ func (s *SmartScanner) Scan(ctx context.Context) error {
 func (s *SmartScanner) collectSmart(ctx context.Context, name string) {
 	report, err := s.diskMgr.SmartDetails(ctx, name)
 	if err != nil {
+		// Log at debug level - SMART not supported on all disks
+		logger.Debug("failed to collect SMART", "disk", name, "error", err)
 		return
 	}
 
 	if err := s.repo.SaveSmart(report); err != nil {
-		fmt.Printf("Warning: failed to cache SMART for %s: %v\n", name, err)
+		logger.Warn("failed to cache SMART", "disk", name, "error", err)
 		return
 	}
 

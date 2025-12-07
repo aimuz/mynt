@@ -222,8 +222,11 @@ func (m *Manager) SmartTest(ctx context.Context, name string, typ TestType) erro
 
 	_, err := m.exec.CombinedOutput(ctx, "smartctl", "-t", string(typ), "/dev/"+name)
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() <= 3 {
-			return nil
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// Only treat bits 0-2 as fatal
+			if exitErr.ExitCode()&smartExitFatalMask == 0 {
+				return nil
+			}
 		}
 		return fmt.Errorf("start smart test: %w", err)
 	}
@@ -259,12 +262,34 @@ func (m *Manager) SmartTestStatus(ctx context.Context, name string) (*TestStatus
 	return s, nil
 }
 
-// runSmartctl executes smartctl and handles exit codes.
+// smartctl exit code bitmask values (from man smartctl).
+const (
+	// Fatal errors - command/device issues
+	smartExitCmdLine   = 1 << 0 // Bit 0: Command line parse error
+	smartExitDevOpen   = 1 << 1 // Bit 1: Device open failed
+	smartExitCmdFailed = 1 << 2 // Bit 2: SMART command to disk failed
+
+	// Disk health status - not fatal, still have valid data
+	// Bit 3: SMART status check returned "DISK FAILING"
+	// Bit 4: Prefail attributes <= threshold
+	// Bit 5: Some attributes > threshold in past
+	// Bit 6: Error log contains errors
+	// Bit 7: Self-test log contains errors
+
+	smartExitFatalMask = smartExitCmdLine | smartExitDevOpen | smartExitCmdFailed
+)
+
+// runSmartctl executes smartctl and handles exit codes using bitmask.
 func (m *Manager) runSmartctl(ctx context.Context, name string) ([]byte, error) {
 	out, err := m.exec.CombinedOutput(ctx, "smartctl", "-a", "-j", "/dev/"+name)
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() <= 3 {
-			return out, nil
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			code := exitErr.ExitCode()
+			// Only treat bits 0-2 as fatal (command/device errors)
+			// Bits 3-7 indicate disk health issues but data is still valid
+			if code&smartExitFatalMask == 0 {
+				return out, nil
+			}
 		}
 		return nil, fmt.Errorf("smartctl: %w", err)
 	}

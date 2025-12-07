@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"go.aimuz.me/mynt/disk"
@@ -142,9 +143,12 @@ func (d *DiskState) ToInfo() disk.Info {
 
 // SaveSmart saves or updates SMART data for a disk.
 func (r *DiskRepo) SaveSmart(report *disk.DetailedReport) error {
-	attrs, _ := json.Marshal(report.Attributes)
+	attrs, err := json.Marshal(report.Attributes)
+	if err != nil {
+		return fmt.Errorf("marshal attributes: %w", err)
+	}
 
-	_, err := r.db.conn.Exec(`
+	_, err = r.db.conn.Exec(`
 		INSERT INTO disk_smart (disk_name, passed, temperature, power_on_hours, power_cycle_count,
 			reallocated_sectors, pending_sectors, uncorrectable_errors, attributes, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -181,7 +185,9 @@ func (r *DiskRepo) GetSmart(name string) (*SmartState, error) {
 	}
 
 	if len(attrsJSON) > 0 {
-		json.Unmarshal(attrsJSON, &s.Attributes)
+		if err := json.Unmarshal(attrsJSON, &s.Attributes); err != nil {
+			return nil, fmt.Errorf("unmarshal attributes: %w", err)
+		}
 	}
 	return &s, nil
 }
@@ -209,7 +215,9 @@ func (r *DiskRepo) ListSmart() (map[string]*SmartState, error) {
 			return nil, err
 		}
 		if len(attrsJSON) > 0 {
-			json.Unmarshal(attrsJSON, &s.Attributes)
+			if err := json.Unmarshal(attrsJSON, &s.Attributes); err != nil {
+				return nil, fmt.Errorf("unmarshal attributes for %s: %w", s.DiskName, err)
+			}
 		}
 		result[s.DiskName] = &s
 	}

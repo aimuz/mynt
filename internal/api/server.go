@@ -10,6 +10,7 @@ import (
 	"go.aimuz.me/mynt/auth"
 	"go.aimuz.me/mynt/disk"
 	"go.aimuz.me/mynt/event"
+	"go.aimuz.me/mynt/logger"
 	"go.aimuz.me/mynt/share"
 	"go.aimuz.me/mynt/store"
 	"go.aimuz.me/mynt/task"
@@ -311,7 +312,9 @@ func (s *Server) handleRefreshSmart(w http.ResponseWriter, r *http.Request) {
 
 	// Update cache
 	if s.diskRepo != nil {
-		s.diskRepo.SaveSmart(report)
+		if err := s.diskRepo.SaveSmart(report); err != nil {
+			logger.Warn("failed to cache SMART data", "disk", name, "error", err)
+		}
 	}
 
 	respondJSON(w, http.StatusOK, report)

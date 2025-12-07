@@ -4,6 +4,7 @@ package disk
 import (
 	"context"
 
+	"go.aimuz.me/mynt/logger"
 	"go.aimuz.me/mynt/sysexec"
 )
 
@@ -125,7 +126,10 @@ func (m *Manager) List(ctx context.Context) ([]Info, error) {
 
 	// Enrich with cached SMART data if available
 	if m.cache != nil {
-		smartMap, _ := m.cache.ListSmart()
+		smartMap, err := m.cache.ListSmart()
+		if err != nil {
+			logger.Debug("failed to load SMART cache", "error", err)
+		}
 		for i := range disks {
 			if s, ok := smartMap[disks[i].Name]; ok {
 				enrichFromCache(&disks[i], s)
