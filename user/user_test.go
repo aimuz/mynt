@@ -17,7 +17,7 @@ func setupTestUser(t *testing.T) (*Manager, *store.DB) {
 
 	// Set mock executor for testing
 	mock := sysexec.NewMock()
-	mgr.setExecutor(mock)
+	mgr.SetExecutor(mock)
 
 	return mgr, db
 }
