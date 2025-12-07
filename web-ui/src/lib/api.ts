@@ -87,6 +87,42 @@ interface Disk {
     type: string;
     in_use: boolean;
     usage?: UsageInfo;
+    slot?: string;
+    pool?: string;
+    status: string;          // "healthy", "warning", "failed", "unknown"
+    smart_health: string;    // "good", "warning", "failed", "unknown"
+    temperature?: number;
+}
+
+interface SmartAttribute {
+    id: number;
+    name: string;
+    value: number;
+    worst: number;
+    thresh: number;
+    raw: string;
+    status: string;
+}
+
+interface DetailedSmartReport {
+    disk: string;
+    passed: boolean;
+    attributes: SmartAttribute[];
+    power_on_hours: number;
+    power_cycle_count: number;
+    reallocated_sectors: number;
+    pending_sectors: number;
+    uncorrectable_errors: number;
+    temperature: number;
+    checked_at: string;
+}
+
+interface SmartTestStatus {
+    running: boolean;
+    type?: string;
+    progress?: number;
+    remaining_mins?: number;
+    last_result?: string;
 }
 
 interface Share {
@@ -205,6 +241,34 @@ class ApiClient {
     // Disks
     async listDisks(): Promise<Disk[]> {
         return this.request('/disks');
+    }
+
+    async getDiskSmartDetails(name: string): Promise<DetailedSmartReport> {
+        return this.request(`/disks/${encodeURIComponent(name)}/smart`);
+    }
+
+    async refreshSmartData(name: string): Promise<DetailedSmartReport> {
+        return this.request(`/disks/${encodeURIComponent(name)}/smart/refresh`, {
+            method: 'POST',
+        });
+    }
+
+    async runSmartTest(name: string, type: 'short' | 'long'): Promise<void> {
+        return this.request(`/disks/${encodeURIComponent(name)}/smart/test`, {
+            method: 'POST',
+            body: JSON.stringify({ type }),
+        });
+    }
+
+    async getSmartTestStatus(name: string): Promise<SmartTestStatus> {
+        return this.request(`/disks/${encodeURIComponent(name)}/smart/test/status`);
+    }
+
+    async locateDisk(name: string, action: 'on' | 'off'): Promise<void> {
+        return this.request(`/disks/${encodeURIComponent(name)}/locate`, {
+            method: 'POST',
+            body: JSON.stringify({ action }),
+        });
     }
 
     // Pools
@@ -372,4 +436,4 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
-export type { User, Pool, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy };
+export type { User, Pool, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };

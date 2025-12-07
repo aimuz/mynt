@@ -10,6 +10,7 @@ import (
 	"go.aimuz.me/mynt/auth"
 	"go.aimuz.me/mynt/disk"
 	"go.aimuz.me/mynt/event"
+	"go.aimuz.me/mynt/logger"
 	"go.aimuz.me/mynt/share"
 	"go.aimuz.me/mynt/store"
 	"go.aimuz.me/mynt/task"
@@ -29,14 +30,15 @@ type Server struct {
 	config         *store.ConfigRepo
 	notification   *store.NotificationRepo
 	snapshotPolicy *store.SnapshotPolicyRepo
+	diskRepo       *store.DiskRepo
 	authConfig     *auth.Config
 	authMw         *auth.Middleware
 	mux            *http.ServeMux
-	onPolicyChange func() // Called when snapshot policies are modified
+	onPolicyChange func()
 }
 
 // NewServer creates a new API server.
-func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, sp *store.SnapshotPolicyRepo, authCfg *auth.Config, onPolicyChange func()) *Server {
+func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, sp *store.SnapshotPolicyRepo, dr *store.DiskRepo, authCfg *auth.Config, onPolicyChange func()) *Server {
 	s := &Server{
 		zfs:            zfs,
 		disk:           diskMgr,
@@ -47,6 +49,7 @@ func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task
 		config:         cfg,
 		notification:   notif,
 		snapshotPolicy: sp,
+		diskRepo:       dr,
 		authConfig:     authCfg,
 		authMw:         auth.NewMiddleware(authCfg),
 		mux:            http.NewServeMux(),
@@ -70,7 +73,11 @@ func (s *Server) routes() {
 	// Protected API routes - all require authentication
 	// Apply auth middleware to all /api/v1/ routes except auth
 	s.mux.HandleFunc("GET /api/v1/disks", s.protected(s.handleListDisks))
-	s.mux.HandleFunc("GET /api/v1/disks/smart", s.protected(s.handleDiskSmart))
+	s.mux.HandleFunc("GET /api/v1/disks/{name}/smart", s.protected(s.handleDiskSmartDetails))
+	s.mux.HandleFunc("POST /api/v1/disks/{name}/smart/refresh", s.protected(s.handleRefreshSmart))
+	s.mux.HandleFunc("POST /api/v1/disks/{name}/smart/test", s.protected(s.handleRunSmartTest))
+	s.mux.HandleFunc("GET /api/v1/disks/{name}/smart/test/status", s.protected(s.handleSmartTestStatus))
+	s.mux.HandleFunc("POST /api/v1/disks/{name}/locate", s.protected(s.handleDiskLocate))
 	s.mux.HandleFunc("GET /api/v1/pools", s.protected(s.handleListPools))
 	s.mux.HandleFunc("POST /api/v1/pools", s.protected(s.handleCreatePool))
 
@@ -248,20 +255,146 @@ func (s *Server) handleListDisks(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, disks)
 }
 
-func (s *Server) handleDiskSmart(w http.ResponseWriter, r *http.Request) {
-	diskName := r.URL.Query().Get("name")
-	if diskName == "" {
+// handleDiskSmartDetails returns cached SMART data for a disk.
+func (s *Server) handleDiskSmartDetails(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
 		http.Error(w, "disk name required", http.StatusBadRequest)
 		return
 	}
 
-	report, err := disk.Smart(r.Context(), diskName)
+	// Try cache first
+	if s.diskRepo != nil {
+		cached, err := s.diskRepo.GetSmart(name)
+		if err == nil && cached != nil {
+			// Return cached data as DetailedReport format
+			report := &disk.DetailedReport{
+				Disk:                cached.DiskName,
+				Passed:              cached.Passed,
+				Attributes:          cached.Attributes,
+				CheckedAt:           cached.UpdatedAt,
+				PowerOnHours:        cached.PowerOnHours,
+				PowerCycleCount:     cached.PowerCycleCount,
+				ReallocatedSectors:  cached.ReallocatedSectors,
+				PendingSectors:      cached.PendingSectors,
+				UncorrectableErrors: cached.UncorrectableErrors,
+				Temperature:         cached.Temperature,
+			}
+			respondJSON(w, http.StatusOK, report)
+			return
+		}
+	}
+
+	// Cache miss - fall back to live query
+	report, err := s.disk.SmartDetails(r.Context(), name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	respondJSON(w, http.StatusOK, report)
+}
+
+// handleRefreshSmart forces a fresh SMART data fetch and updates cache.
+func (s *Server) handleRefreshSmart(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "disk name required", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch fresh SMART data (bypasses cache)
+	report, err := s.disk.SmartDetails(r.Context(), name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Update cache
+	if s.diskRepo != nil {
+		if err := s.diskRepo.SaveSmart(report); err != nil {
+			logger.Warn("failed to cache SMART data", "disk", name, "error", err)
+		}
+	}
+
+	respondJSON(w, http.StatusOK, report)
+}
+
+// handleRunSmartTest initiates a SMART self-test.
+func (s *Server) handleRunSmartTest(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "disk name required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Type string `json:"type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	typ := disk.TestShort
+	if req.Type == "long" {
+		typ = disk.TestLong
+	}
+
+	if err := s.disk.SmartTest(r.Context(), name, typ); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// handleSmartTestStatus returns current SMART test status.
+func (s *Server) handleSmartTestStatus(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "disk name required", http.StatusBadRequest)
+		return
+	}
+
+	status, err := s.disk.SmartTestStatus(r.Context(), name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, status)
+}
+
+// handleDiskLocate toggles the locate LED on a disk.
+func (s *Server) handleDiskLocate(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "disk name required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Action string `json:"action"` // "on" or "off"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	var err error
+	if req.Action == "off" {
+		err = s.disk.LocateOff(r.Context(), name)
+	} else {
+		err = s.disk.Locate(r.Context(), name)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) handleListPools(w http.ResponseWriter, r *http.Request) {

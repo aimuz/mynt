@@ -51,8 +51,11 @@ func setupTestServer(t *testing.T) (*api.Server, *store.DB) {
 	// Snapshot Policy
 	snapshotPolicyRepo := store.NewSnapshotPolicyRepo(db)
 
+	// Disk repo (can be nil in tests)
+	diskRepo := store.NewDiskRepo(db)
+
 	// Server (nil for onPolicyChange since we don't have a scheduler in tests)
-	srv := api.NewServer(pools, diskMgr, bus, tm, shareMgr, userMgr, configRepo, notifRepo, snapshotPolicyRepo, authConfig, nil)
+	srv := api.NewServer(pools, diskMgr, bus, tm, shareMgr, userMgr, configRepo, notifRepo, snapshotPolicyRepo, diskRepo, authConfig, nil)
 
 	return srv, db
 }
