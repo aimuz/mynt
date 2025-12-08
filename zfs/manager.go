@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"slices"
 	"strconv"
 	"strings"
@@ -271,7 +272,7 @@ func parseVDevsFromJSON(jsonVDevs map[string]*Vdev) []VDevDetail {
 		if root.VDevType != "root" {
 			continue
 		}
-		for _, v := range root.VDevs {
+		for _, v := range sortMapIter(root.VDevs) {
 			vdevs = append(vdevs, vdevDetailFromVdev(v))
 		}
 	}
@@ -298,7 +299,7 @@ func vdevDetailFromVdev(v *Vdev) VDevDetail {
 // collectChildDisks extracts DiskDetail from child vdevs, handling "replacing" vdevs.
 func collectChildDisks(children map[string]*Vdev) []DiskDetail {
 	var disks []DiskDetail
-	for _, child := range children {
+	for _, child := range sortMapIter(children) {
 		if child.VDevType == "replacing" {
 			// Replacing vdev contains old and new disk as children
 			for _, d := range child.VDevs {
@@ -374,4 +375,23 @@ func parseResilverFromJSON(scan *ScanStatsJSON) *ResilverStatus {
 func parseUint(s string) uint64 {
 	v, _ := strconv.ParseUint(s, 10, 64)
 	return v
+}
+
+// sortMapIter returns an iterator that yields map entries in sorted key order.
+// The iterator conforms to iter.Seq2 and can be used with range loops.
+func sortMapIter[K string, T any](m map[K]T) iter.Seq2[K, T] {
+	// Collect and sort keys first to ensure deterministic iteration order.
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	return func(yield func(K, T) bool) {
+		for _, k := range keys {
+			if !yield(k, m[k]) {
+				return
+			}
+		}
+	}
 }
