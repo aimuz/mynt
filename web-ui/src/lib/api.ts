@@ -19,23 +19,26 @@ interface User {
 
 interface Pool {
     name: string;
+    guid?: string;
     health: string;
     size: number;
     allocated: number;
     free: number;
-    capacity: number;
-    // Extended fields
+    frag?: number;
     disk_count?: number;
-    redundancy?: number; // How many more disks can fail
-    last_scrub?: string;
-    scrub_in_progress?: boolean;
-    vdevs?: VDev[];
+    redundancy?: number;
+    vdevs?: VDevDetail[];
+    scrub_status?: ScrubStatus;
+    resilver_status?: ResilverStatus;
 }
 
-interface VDev {
-    type: string;
-    disks: string[];
-    status: string;
+interface ScrubStatus {
+    in_progress: boolean;
+    end_time?: string;
+    errors: number;
+    data_scanned: number;
+    data_to_scan: number;
+    scan_rate: number;
 }
 
 interface VDevDetail {
@@ -473,17 +476,9 @@ class ApiClient {
         });
     }
 
-    async getScrubStatus(poolName: string): Promise<{ status: string }> {
-        return this.request(`/pools/${poolName}/scrub/status`);
-    }
-
     // Pool detail operations
     async getPool(poolName: string): Promise<Pool> {
         return this.request(`/pools/${poolName}`);
-    }
-
-    async getPoolVDevs(poolName: string): Promise<VDevDetail[]> {
-        return this.request(`/pools/${poolName}/vdevs`);
     }
 
     async replaceDisk(poolName: string, oldDisk: string, newDisk: string): Promise<void> {
@@ -492,12 +487,8 @@ class ApiClient {
             body: JSON.stringify({ old_disk: oldDisk, new_disk: newDisk }),
         });
     }
-
-    async getResilverStatus(poolName: string): Promise<ResilverStatus> {
-        return this.request(`/pools/${poolName}/resilver/status`);
-    }
 }
 
 export const api = new ApiClient();
-export type { User, Pool, VDev, VDevDetail, DiskDetail, ResilverStatus, PoolHealth, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };
+export type { User, Pool, VDevDetail, DiskDetail, ResilverStatus, ScrubStatus, PoolHealth, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };
 

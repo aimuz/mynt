@@ -18,28 +18,20 @@ const (
 	PoolUnavail  PoolStatus = "UNAVAIL"
 )
 
-// VDev represents a virtual device in a pool.
-type VDev struct {
-	Type   string   `json:"type"`   // "mirror", "raidz", "raidz2", "raidz3", etc.
-	Disks  []string `json:"disks"`  // device paths
-	Status string   `json:"status"` // ONLINE, DEGRADED, FAULTED, etc.
-}
-
 // Pool represents a ZFS storage pool.
 type Pool struct {
-	Name            string     `json:"name"`
-	GUID            string     `json:"guid"`
-	Size            uint64     `json:"size"`
-	Allocated       uint64     `json:"allocated"`
-	Free            uint64     `json:"free"`
-	Frag            uint64     `json:"frag"` // Fragmentation percentage
-	Health          PoolStatus `json:"health"`
-	AltRoot         string     `json:"altroot"`
-	VDevs           []VDev     `json:"vdevs,omitempty"`
-	DiskCount       int        `json:"disk_count"`
-	Redundancy      int        `json:"redundancy"` // How many more disks can fail (-1 = already degraded)
-	LastScrub       *string    `json:"last_scrub,omitempty"`
-	ScrubInProgress bool       `json:"scrub_in_progress"`
+	Name           string          `json:"name"`
+	GUID           string          `json:"guid"`
+	Size           uint64          `json:"size"`
+	Allocated      uint64          `json:"allocated"`
+	Free           uint64          `json:"free"`
+	Frag           uint64          `json:"frag"` // Fragmentation percentage
+	Health         PoolStatus      `json:"health"`
+	VDevs          []VDevDetail    `json:"vdevs,omitempty"`
+	DiskCount      int             `json:"disk_count"`
+	Redundancy     int             `json:"redundancy"` // How many more disks can fail
+	ScrubStatus    *ScrubStatus    `json:"scrub_status,omitempty"`
+	ResilverStatus *ResilverStatus `json:"resilver_status,omitempty"`
 }
 
 // DatasetType represents the type of a dataset.
@@ -160,17 +152,15 @@ type CreateSnapshotRequest struct {
 	Name    string `json:"name"`    // snapshot name (without @)
 }
 
-// fromGozfsPool converts a go-zfs Zpool to our Pool type.
+// fromGozfsPool converts a go-zfs Zpool to our Pool type (used by ListPools).
 func fromGozfsPool(z *gozfs.Zpool) Pool {
 	return Pool{
 		Name:      z.Name,
-		GUID:      "", // go-zfs doesn't provide GUID in the same way
 		Size:      z.Size,
 		Allocated: z.Allocated,
 		Free:      z.Free,
 		Frag:      z.Fragmentation,
 		Health:    PoolStatus(z.Health),
-		AltRoot:   "", // go-zfs doesn't provide AltRoot
 	}
 }
 

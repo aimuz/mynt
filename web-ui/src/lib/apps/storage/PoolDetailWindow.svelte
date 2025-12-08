@@ -49,35 +49,25 @@
         // Poll for resilver status every 5 seconds if resilvering
         const interval = setInterval(() => {
             if (resilverStatus?.in_progress) {
-                loadResilverStatus();
+                loadData(false); // Refresh all data without showing loading spinner
             }
         }, 5000);
         return () => clearInterval(interval);
     });
 
-    async function loadData() {
-        loading = true;
+    async function loadData(showLoading = true) {
+        if (showLoading) loading = true;
         error = null;
         try {
-            const [poolData, vdevData] = await Promise.all([
-                api.getPool(poolName),
-                api.getPoolVDevs(poolName),
-            ]);
+            // Single API call returns pool with vdevs and resilver_status
+            const poolData = await api.getPool(poolName);
             pool = poolData;
-            vdevs = vdevData || [];
-            await loadResilverStatus();
+            vdevs = poolData.vdevs || [];
+            resilverStatus = poolData.resilver_status || null;
         } catch (err) {
             error = err instanceof Error ? err.message : "加载失败";
         } finally {
-            loading = false;
-        }
-    }
-
-    async function loadResilverStatus() {
-        try {
-            resilverStatus = await api.getResilverStatus(poolName);
-        } catch {
-            // Ignore errors for resilver status
+            if (showLoading) loading = false;
         }
     }
 
@@ -242,7 +232,7 @@
             <CircleX class="w-16 h-16 text-red-500" />
             <p class="text-red-500">{error}</p>
             <button
-                onclick={loadData}
+                onclick={() => loadData()}
                 class="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
             >
                 重试
@@ -311,7 +301,7 @@
                     </div>
                 </div>
                 <button
-                    onclick={loadData}
+                    onclick={() => loadData()}
                     class="p-2 rounded-lg hover:bg-white/10 transition-colors"
                     title="刷新"
                 >
@@ -409,15 +399,17 @@
         <div class="flex gap-3">
             <button
                 onclick={handleStartScrub}
-                disabled={pool.scrub_in_progress}
+                disabled={pool.scrub_status?.in_progress}
                 class="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
                 <RefreshCw
-                    class="w-4 h-4 {pool.scrub_in_progress
+                    class="w-4 h-4 {pool.scrub_status?.in_progress
                         ? 'animate-spin'
                         : ''}"
                 />
-                {pool.scrub_in_progress ? "正在 Scrub..." : "开始 Scrub"}
+                {pool.scrub_status?.in_progress
+                    ? "正在 Scrub..."
+                    : "开始 Scrub"}
             </button>
         </div>
     {/if}

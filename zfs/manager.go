@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	gozfs "github.com/mistifyio/go-zfs/v4"
-	"go.aimuz.me/mynt/logger"
 	"go.aimuz.me/mynt/sysexec"
 )
 
@@ -119,77 +118,87 @@ func (m *Manager) Scrub(ctx context.Context, poolName string) error {
 	return nil
 }
 
-// ScrubStatus gets the scrub status of a pool.
-func (m *Manager) ScrubStatus(ctx context.Context, poolName string) (string, error) {
-	out, err := m.exec.Output(ctx, "zpool", "status", poolName)
-	if err != nil {
-		return "", fmt.Errorf("failed to get scrub status: %w", err)
-	}
-	return string(out), nil
-}
-
-// GetPool gets details of a single pool.
+// GetPool gets comprehensive details of a single pool from a single zpool status call.
 func (m *Manager) GetPool(ctx context.Context, name string) (*Pool, error) {
-	zpool, err := gozfs.GetZpool(name)
+	// Execute zpool status -p -j for all pool info
+	out, err := m.exec.Output(ctx, "zpool", "status", "-p", "-j", name)
 	if err != nil {
-		return nil, fmt.Errorf("get pool %s: %w", name, err)
-	}
-	pool := fromGozfsPool(zpool)
-
-	// Parse vdev structure from zpool status (supplementary info)
-	vdevs, err := m.GetPoolVDevs(ctx, name)
-	if err != nil {
-		logger.Warn("failed to parse vdev structure", "pool", name, "error", err)
-		return &pool, nil
-	}
-
-	populateVDevInfo(&pool, vdevs)
-	return &pool, nil
-}
-
-// populateVDevInfo fills pool vdev information from VDevDetail slice.
-func populateVDevInfo(pool *Pool, vdevs []VDevDetail) {
-	pool.VDevs = make([]VDev, len(vdevs))
-	diskCount := 0
-	for i, vd := range vdevs {
-		pool.VDevs[i] = VDev{
-			Type:   vd.Type,
-			Disks:  diskPathsFromChildren(vd.Children),
-			Status: vd.Status,
-		}
-		diskCount += len(vd.Children)
-	}
-	pool.DiskCount = diskCount
-	pool.Redundancy = calculateRedundancy(vdevs)
-}
-
-// diskPathsFromChildren extracts disk paths from DiskDetail slice.
-func diskPathsFromChildren(children []DiskDetail) []string {
-	paths := make([]string, len(children))
-	for i, c := range children {
-		paths[i] = c.Path
-	}
-	return paths
-}
-
-// GetPoolVDevs gets vdev structure using `zpool status -j` JSON output.
-func (m *Manager) GetPoolVDevs(ctx context.Context, poolName string) ([]VDevDetail, error) {
-	out, err := m.exec.Output(ctx, "zpool", "status", "-p", "-j", poolName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pool status: %w", err)
+		return nil, fmt.Errorf("get pool status %s: %w", name, err)
 	}
 
 	var status ZpoolStatusJSON
 	if err := json.Unmarshal(out, &status); err != nil {
-		return nil, fmt.Errorf("failed to parse pool status JSON: %w", err)
+		return nil, fmt.Errorf("parse pool status JSON: %w", err)
 	}
 
-	pool, ok := status.Pools[poolName]
+	poolJSON, ok := status.Pools[name]
 	if !ok {
-		return nil, fmt.Errorf("pool %s not found in status output", poolName)
+		return nil, fmt.Errorf("pool %s not found", name)
 	}
 
-	return parseVDevsFromJSON(pool.VDevs), nil
+	// Parse vdevs from JSON
+	vdevs := parseVDevsFromJSON(poolJSON.VDevs)
+
+	// Build pool from JSON data
+	pool := poolFromJSON(name, poolJSON, vdevs)
+
+	// Parse scan status (scrub/resilver)
+	pool.ScrubStatus = parseScrubFromJSON(poolJSON.ScanStats)
+	pool.ResilverStatus = parseResilverFromJSON(poolJSON.ScanStats)
+
+	return &pool, nil
+}
+
+// poolFromJSON builds a Pool from JSON data.
+func poolFromJSON(name string, p *PoolJSON, vdevs []VDevDetail) Pool {
+	// Find root vdev to get size/allocated
+	var size, allocated uint64
+	for _, v := range p.VDevs {
+		if v.VDevType == "root" {
+			size = parseUint(v.TotalSpace)
+			allocated = parseUint(v.AllocSpace)
+			break
+		}
+	}
+
+	// Count disks and calculate redundancy
+	diskCount := 0
+	for _, vd := range vdevs {
+		diskCount += len(vd.Children)
+	}
+
+	return Pool{
+		Name:       name,
+		GUID:       p.PoolGUID,
+		Size:       size,
+		Allocated:  allocated,
+		Free:       size - allocated,
+		Health:     PoolStatus(p.State),
+		VDevs:      vdevs,
+		DiskCount:  diskCount,
+		Redundancy: calculateRedundancy(vdevs),
+	}
+}
+
+// parseScrubFromJSON converts ScanStatsJSON to ScrubStatus.
+func parseScrubFromJSON(scan *ScanStatsJSON) *ScrubStatus {
+	if scan == nil || scan.Function != "SCRUB" {
+		return nil
+	}
+
+	status := &ScrubStatus{
+		InProgress:  scan.State == "SCANNING",
+		Errors:      int(parseUint(scan.Errors)),
+		DataScanned: parseUint(scan.Examined),
+		DataToScan:  parseUint(scan.ToExamine),
+		ScanRate:    parseUint(scan.BytesPerScan),
+	}
+
+	if scan.State == "FINISHED" && scan.EndTime != "" {
+		status.EndTime = &scan.EndTime
+	}
+
+	return status
 }
 
 // ReplaceDisk replaces a disk in a pool.
@@ -199,26 +208,6 @@ func (m *Manager) ReplaceDisk(ctx context.Context, poolName, oldDisk, newDisk st
 		return fmt.Errorf("replace disk %s with %s in pool %s: %w", oldDisk, newDisk, poolName, err)
 	}
 	return nil
-}
-
-// GetResilverStatus gets the resilver (rebuild) status of a pool using JSON output.
-func (m *Manager) GetResilverStatus(ctx context.Context, poolName string) (*ResilverStatus, error) {
-	out, err := m.exec.Output(ctx, "zpool", "status", "-p", "-j", poolName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pool status: %w", err)
-	}
-
-	var status ZpoolStatusJSON
-	if err := json.Unmarshal(out, &status); err != nil {
-		return nil, fmt.Errorf("failed to parse pool status JSON: %w", err)
-	}
-
-	pool, ok := status.Pools[poolName]
-	if !ok {
-		return nil, fmt.Errorf("pool %s not found in status output", poolName)
-	}
-
-	return parseResilverFromJSON(pool.ScanStats), nil
 }
 
 // calculateRedundancy determines how many more disks can fail.

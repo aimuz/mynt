@@ -83,11 +83,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/pools", s.protected(s.handleListPools))
 	s.mux.HandleFunc("POST /api/v1/pools", s.protected(s.handleCreatePool))
 	s.mux.HandleFunc("GET /api/v1/pools/{name}", s.protected(s.handleGetPool))
-	s.mux.HandleFunc("GET /api/v1/pools/{name}/vdevs", s.protected(s.handleGetPoolVDevs))
 	s.mux.HandleFunc("POST /api/v1/pools/{name}/replace", s.protected(s.handleReplaceDisk))
-	s.mux.HandleFunc("GET /api/v1/pools/{name}/resilver/status", s.protected(s.handleResilverStatus))
 	s.mux.HandleFunc("POST /api/v1/pools/{name}/scrub", s.protected(s.handlePoolScrub))
-	s.mux.HandleFunc("GET /api/v1/pools/{name}/scrub/status", s.protected(s.handleScrubStatus))
 
 	s.mux.HandleFunc("GET /api/v1/datasets", s.protected(s.handleListDatasets))
 	s.mux.HandleFunc("POST /api/v1/datasets", s.protected(s.handleCreateDataset))
@@ -681,24 +678,6 @@ func (s *Server) handlePoolScrub(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (s *Server) handleScrubStatus(w http.ResponseWriter, r *http.Request) {
-	poolName := r.PathValue("name")
-	if poolName == "" {
-		http.Error(w, "pool name required", http.StatusBadRequest)
-		return
-	}
-
-	status, err := s.zfs.ScrubStatus(r.Context(), poolName)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	respondJSON(w, http.StatusOK, map[string]string{
-		"status": status,
-	})
-}
-
 // handleGetPool returns detailed information about a single pool.
 func (s *Server) handleGetPool(w http.ResponseWriter, r *http.Request) {
 	poolName := r.PathValue("name")
@@ -714,23 +693,6 @@ func (s *Server) handleGetPool(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, pool)
-}
-
-// handleGetPoolVDevs returns the vdev structure of a pool.
-func (s *Server) handleGetPoolVDevs(w http.ResponseWriter, r *http.Request) {
-	poolName := r.PathValue("name")
-	if poolName == "" {
-		http.Error(w, "pool name required", http.StatusBadRequest)
-		return
-	}
-
-	vdevs, err := s.zfs.GetPoolVDevs(r.Context(), poolName)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	respondJSON(w, http.StatusOK, vdevs)
 }
 
 // handleReplaceDisk initiates a disk replacement in a pool.
@@ -763,25 +725,7 @@ func (s *Server) handleReplaceDisk(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// handleResilverStatus returns the resilver (rebuild) progress of a pool.
-func (s *Server) handleResilverStatus(w http.ResponseWriter, r *http.Request) {
-	poolName := r.PathValue("name")
-	if poolName == "" {
-		http.Error(w, "pool name required", http.StatusBadRequest)
-		return
-	}
-
-	status, err := s.zfs.GetResilverStatus(r.Context(), poolName)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	respondJSON(w, http.StatusOK, status)
-}
-
 // Dataset quota handler
-
 func (s *Server) handleSetDatasetQuota(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
