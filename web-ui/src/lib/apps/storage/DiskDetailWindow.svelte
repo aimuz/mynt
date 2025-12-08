@@ -157,7 +157,7 @@
         <div class="glass-card rounded-xl p-6 mb-6">
             <div class="flex items-start gap-4">
                 <div
-                    class="w-16 h-16 rounded-xl bg-linear-to-br from-slate-500 to-slate-700 flex items-center justify-center flex-shrink-0"
+                    class="w-16 h-16 rounded-xl bg-linear-to-br from-slate-500 to-slate-700 flex items-center justify-center shrink-0"
                 >
                     <HardDrive class="w-8 h-8 text-white" />
                 </div>
