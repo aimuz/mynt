@@ -379,23 +379,16 @@ func parseSize(s string) uint64 {
 	}
 
 	multiplier := uint64(1)
+	multipliers := map[byte]uint64{
+		'K': 1 << 10, 'k': 1 << 10,
+		'M': 1 << 20, 'm': 1 << 20,
+		'G': 1 << 30, 'g': 1 << 30,
+		'T': 1 << 40, 't': 1 << 40,
+		'P': 1 << 50, 'p': 1 << 50,
+	}
 	lastChar := s[len(s)-1]
-
-	switch lastChar {
-	case 'K', 'k':
-		multiplier = 1024
-		s = s[:len(s)-1]
-	case 'M', 'm':
-		multiplier = 1024 * 1024
-		s = s[:len(s)-1]
-	case 'G', 'g':
-		multiplier = 1024 * 1024 * 1024
-		s = s[:len(s)-1]
-	case 'T', 't':
-		multiplier = 1024 * 1024 * 1024 * 1024
-		s = s[:len(s)-1]
-	case 'P', 'p':
-		multiplier = 1024 * 1024 * 1024 * 1024 * 1024
+	if m, ok := multipliers[lastChar]; ok {
+		multiplier = m
 		s = s[:len(s)-1]
 	}
 

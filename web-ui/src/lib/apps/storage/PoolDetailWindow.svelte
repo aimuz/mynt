@@ -162,14 +162,12 @@
 
         if (health === "DEGRADED") {
             // Count failed disks
-            let failedDisks = 0;
-            for (const vdev of vdevs) {
-                for (const disk of vdev.children) {
-                    if (disk.status !== "ONLINE") {
-                        failedDisks++;
-                    }
-                }
-            }
+            const failedDisks = vdevs.reduce(
+                (count, vdev) =>
+                    count +
+                    vdev.children.filter((d) => d.status !== "ONLINE").length,
+                0,
+            );
             // Use redundancy property for accurate risk description
             let description = `存储池降级：${failedDisks} 块磁盘故障。`;
             if (pool.redundancy === 0) {
