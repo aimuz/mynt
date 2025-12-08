@@ -56,7 +56,7 @@ func (m *Manager) listPools(ctx context.Context, names ...string) ([]Pool, error
 	}
 
 	pools := make([]Pool, 0, len(status.Pools))
-	for name, pj := range status.Pools {
+	for name, pj := range sortMapIter(status.Pools) {
 		pools = append(pools, buildPool(name, pj))
 	}
 	return pools, nil
