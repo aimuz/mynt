@@ -25,52 +25,113 @@ func NewManager() *Manager {
 
 // ListPools lists all imported ZFS pools.
 func (m *Manager) ListPools(ctx context.Context) ([]Pool, error) {
-	zpools, err := gozfs.ListZpools()
+	return m.listPools(ctx)
+}
+
+// GetPool gets comprehensive details of a single pool.
+func (m *Manager) GetPool(ctx context.Context, name string) (*Pool, error) {
+	pools, err := m.listPools(ctx, name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list pools: %w", err)
+		return nil, err
+	}
+	if len(pools) == 0 {
+		return nil, fmt.Errorf("pool %s not found", name)
+	}
+	return &pools[0], nil
+}
+
+// listPools is the internal implementation for listing pools.
+// If names are provided, only those pools are queried.
+func (m *Manager) listPools(ctx context.Context, names ...string) ([]Pool, error) {
+	args := []string{"status", "-p", "-j"}
+	args = append(args, names...)
+
+	out, err := m.exec.Output(ctx, "zpool", args...)
+	if err != nil {
+		return nil, fmt.Errorf("zpool status: %w", err)
 	}
 
-	pools := make([]Pool, 0, len(zpools))
-	for _, zp := range zpools {
-		pools = append(pools, fromGozfsPool(zp))
+	var status ZpoolStatusJSON
+	if err := json.Unmarshal(out, &status); err != nil {
+		return nil, fmt.Errorf("parse zpool status: %w", err)
 	}
 
+	pools := make([]Pool, 0, len(status.Pools))
+	for name, pj := range status.Pools {
+		pools = append(pools, buildPool(name, pj))
+	}
 	return pools, nil
 }
 
-// ListDatasets lists all datasets.
-func (m *Manager) ListDatasets(ctx context.Context) ([]Dataset, error) {
-	fsDatasets, err := gozfs.Filesystems("")
+// buildPool constructs a Pool from JSON data.
+func buildPool(name string, pj *PoolJSON) Pool {
+	vdevs := parseVDevsFromJSON(pj.VDevs)
+	pool := poolFromJSON(name, pj, vdevs)
+	pool.ScrubStatus = parseScrubFromJSON(pj.ScanStats)
+	pool.ResilverStatus = parseResilverFromJSON(pj.ScanStats)
+	return pool
+}
+
+// listDatasets is the internal implementation for listing datasets.
+// If names are provided, only those datasets are queried.
+func (m *Manager) listDatasets(ctx context.Context, names ...string) ([]Dataset, error) {
+	args := []string{"list", "-j", "-p", "-t", "filesystem,volume",
+		"-o", "name,type,used,available,referenced,mountpoint,compression,encryption,dedup,quota,reservation,volsize,usedbydataset"}
+	args = append(args, names...)
+
+	out, err := m.exec.Output(ctx, "zfs", args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list datasets: %w", err)
+		return nil, fmt.Errorf("zfs list: %w", err)
 	}
 
-	VolDatasets, err := gozfs.Volumes("")
-	if err != nil {
-		return nil, fmt.Errorf("failed to list datasets: %w", err)
+	var listJSON ZFSListJSON
+	if err := json.Unmarshal(out, &listJSON); err != nil {
+		return nil, fmt.Errorf("parse zfs list: %w", err)
 	}
 
-	gozfsDatasets := slices.Concat(fsDatasets, VolDatasets)
-	slices.SortFunc(gozfsDatasets, func(a, b *gozfs.Dataset) int {
+	datasets := make([]Dataset, 0, len(listJSON.Datasets))
+	for _, dj := range listJSON.Datasets {
+		datasets = append(datasets, buildDataset(dj))
+	}
+
+	slices.SortFunc(datasets, func(a, b Dataset) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 
-	datasets := make([]Dataset, 0, len(gozfsDatasets))
-	for _, gd := range gozfsDatasets {
-		ds := fromGozfsDataset(gd)
+	return datasets, nil
+}
 
-		// Get encryption and dedup properties
-		if enc, err := gd.GetProperty("encryption"); err == nil {
-			ds.Encryption = enc
-		}
-		if dedup, err := gd.GetProperty("dedup"); err == nil {
-			ds.Deduplication = dedup
-		}
-
-		datasets = append(datasets, ds)
+// buildDataset constructs a Dataset from JSON data.
+func buildDataset(dj *DatasetListJSON) Dataset {
+	dsType := DatasetFilesystem
+	if dj.Type == "VOLUME" {
+		dsType = DatasetVolume
 	}
 
-	return datasets, nil
+	used := parseUint(dj.Properties["used"].Value)
+	if dsType == DatasetVolume {
+		used = parseUint(dj.Properties["usedbydataset"].Value)
+	}
+
+	quota := parseUint(dj.Properties["quota"].Value)
+	if dsType == DatasetVolume {
+		quota = parseUint(dj.Properties["volsize"].Value)
+	}
+
+	return Dataset{
+		Name:          dj.Name,
+		Pool:          dj.Pool,
+		Type:          dsType,
+		Used:          used,
+		Available:     parseUint(dj.Properties["available"].Value),
+		Referenced:    parseUint(dj.Properties["referenced"].Value),
+		Mountpoint:    dj.Properties["mountpoint"].Value,
+		Compression:   dj.Properties["compression"].Value,
+		Encryption:    dj.Properties["encryption"].Value,
+		Deduplication: dj.Properties["dedup"].Value,
+		Quota:         quota,
+		Reservation:   parseUint(dj.Properties["reservation"].Value),
+	}
 }
 
 // CreatePool creates a new ZFS pool.
@@ -117,37 +178,6 @@ func (m *Manager) Scrub(ctx context.Context, poolName string) error {
 		return fmt.Errorf("failed to start scrub: %w", err)
 	}
 	return nil
-}
-
-// GetPool gets comprehensive details of a single pool from a single zpool status call.
-func (m *Manager) GetPool(ctx context.Context, name string) (*Pool, error) {
-	// Execute zpool status -p -j for all pool info
-	out, err := m.exec.Output(ctx, "zpool", "status", "-p", "-j", name)
-	if err != nil {
-		return nil, fmt.Errorf("get pool status %s: %w", name, err)
-	}
-
-	var status ZpoolStatusJSON
-	if err := json.Unmarshal(out, &status); err != nil {
-		return nil, fmt.Errorf("parse pool status JSON: %w", err)
-	}
-
-	poolJSON, ok := status.Pools[name]
-	if !ok {
-		return nil, fmt.Errorf("pool %s not found", name)
-	}
-
-	// Parse vdevs from JSON
-	vdevs := parseVDevsFromJSON(poolJSON.VDevs)
-
-	// Build pool from JSON data
-	pool := poolFromJSON(name, poolJSON, vdevs)
-
-	// Parse scan status (scrub/resilver)
-	pool.ScrubStatus = parseScrubFromJSON(poolJSON.ScanStats)
-	pool.ResilverStatus = parseResilverFromJSON(poolJSON.ScanStats)
-
-	return &pool, nil
 }
 
 // poolFromJSON builds a Pool from JSON data.

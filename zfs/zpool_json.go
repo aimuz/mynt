@@ -64,3 +64,27 @@ type Vdev struct {
 	SlowIOs        string           `json:"slow_ios,omitempty"`
 	VDevs          map[string]*Vdev `json:"vdevs,omitempty"` // Nested child vdevs
 }
+
+// ZFSListJSON represents the JSON output of `zfs list -j`.
+type ZFSListJSON struct {
+	OutputVersion OutputVersion               `json:"output_version"`
+	Datasets      map[string]*DatasetListJSON `json:"datasets"`
+}
+
+// DatasetListJSON represents a dataset in the JSON output.
+type DatasetListJSON struct {
+	Name       string                          `json:"name"`
+	Type       string                          `json:"type"` // "FILESYSTEM" or "VOLUME"
+	Pool       string                          `json:"pool"`
+	CreateTXG  string                          `json:"createtxg"`
+	Properties map[string]*DatasetPropertyJSON `json:"properties"`
+}
+
+// DatasetPropertyJSON represents a property value in zfs list JSON.
+type DatasetPropertyJSON struct {
+	Value  string `json:"value"`
+	Source struct {
+		Type string `json:"type"`
+		Data string `json:"data"`
+	} `json:"source"`
+}

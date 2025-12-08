@@ -80,30 +80,21 @@ func (m *Manager) CreateDataset(ctx context.Context, req CreateDatasetRequest) e
 	return nil
 }
 
+// ListDatasets lists all datasets.
+func (m *Manager) ListDatasets(ctx context.Context) ([]Dataset, error) {
+	return m.listDatasets(ctx)
+}
+
 // GetDataset returns details for a specific dataset.
 func (m *Manager) GetDataset(ctx context.Context, name string) (*Dataset, error) {
-	gozfsDataset, err := gozfs.GetDataset(name)
+	datasets, err := m.listDatasets(ctx, name)
 	if err != nil {
-		return nil, fmt.Errorf("dataset not found: %s: %w", name, err)
+		return nil, err
 	}
-
-	dataset := fromGozfsDataset(gozfsDataset)
-
-	// Get encryption and dedup properties
-	if enc, err := gozfsDataset.GetProperty("encryption"); err == nil {
-		dataset.Encryption = enc
+	if len(datasets) == 0 {
+		return nil, fmt.Errorf("dataset not found: %s", name)
 	}
-	if dedup, err := gozfsDataset.GetProperty("dedup"); err == nil {
-		dataset.Deduplication = dedup
-	}
-	// Get reservation
-	if res, err := gozfsDataset.GetProperty("reservation"); err == nil && res != "0" && res != "none" {
-		var r uint64
-		fmt.Sscanf(res, "%d", &r)
-		dataset.Reservation = r
-	}
-
-	return &dataset, nil
+	return &datasets[0], nil
 }
 
 // DestroyDataset destroys a ZFS dataset.
