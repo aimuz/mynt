@@ -42,6 +42,8 @@
             zIndex: number;
             x: number;
             y: number;
+            width?: number;
+            height?: number;
         }>
     >([]);
     let currentTime = $state(new Date());
@@ -69,7 +71,16 @@
             color: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             onClick: async () => {
                 const module = await import("$lib/apps/DashboardApp.svelte");
-                openWindow("dashboard", "Dashboard", Activity, module.default);
+                if (module.launch) {
+                    module.launch({ openWindow }, module.default);
+                } else {
+                    openWindow({
+                        id: "dashboard",
+                        title: "Dashboard",
+                        icon: Activity,
+                        component: module.default,
+                    });
+                }
             },
         },
         {
@@ -79,12 +90,16 @@
             color: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
             onClick: async () => {
                 const module = await import("$lib/apps/StorageApp.svelte");
-                openWindow(
-                    "storage",
-                    "Storage Manager",
-                    Database,
-                    module.default,
-                );
+                if (module.launch) {
+                    module.launch({ openWindow }, module.default);
+                } else {
+                    openWindow({
+                        id: "storage",
+                        title: "Storage Manager",
+                        icon: Database,
+                        component: module.default,
+                    });
+                }
             },
         },
         {
@@ -96,12 +111,16 @@
                 const module = await import(
                     "$lib/apps/ShareManagementApp.svelte"
                 );
-                openWindow(
-                    "shares",
-                    "Share Management",
-                    FolderOpen,
-                    module.default,
-                );
+                if (module.launch) {
+                    module.launch({ openWindow }, module.default);
+                } else {
+                    openWindow({
+                        id: "shares",
+                        title: "Share Management",
+                        icon: FolderOpen,
+                        component: module.default,
+                    });
+                }
             },
         },
         {
@@ -109,7 +128,19 @@
             name: "Disks",
             icon: HardDrive,
             color: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-            onClick: () => openWindow("disks", "Disk Manager", HardDrive, null),
+            onClick: async () => {
+                const module = await import("$lib/apps/DisksApp.svelte");
+                if (module.launch) {
+                    module.launch({ openWindow }, module.default);
+                } else {
+                    openWindow({
+                        id: "disks",
+                        title: "Disk Manager",
+                        icon: HardDrive,
+                        component: null,
+                    });
+                }
+            },
         },
         {
             id: "users",
@@ -120,7 +151,16 @@
                 const module = await import(
                     "$lib/apps/UserManagementApp.svelte"
                 );
-                openWindow("users", "User Management", Users, module.default);
+                if (module.launch) {
+                    module.launch({ openWindow }, module.default);
+                } else {
+                    openWindow({
+                        id: "users",
+                        title: "User Management",
+                        icon: Users,
+                        component: module.default,
+                    });
+                }
             },
         },
         {
@@ -128,7 +168,19 @@
             name: "Settings",
             icon: Settings,
             color: "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
-            onClick: () => openWindow("settings", "Settings", Settings, null),
+            onClick: async () => {
+                const module = await import("$lib/apps/SettingsApp.svelte");
+                if (module.launch) {
+                    module.launch({ openWindow }, module.default);
+                } else {
+                    openWindow({
+                        id: "settings",
+                        title: "Settings",
+                        icon: Settings,
+                        component: null,
+                    });
+                }
+            },
         },
     ];
 
@@ -143,12 +195,53 @@
         }
     }
 
+    interface WindowConfig {
+        id: string;
+        title: string;
+        icon: any;
+        component: any | (() => { component: any; props?: any });
+        width?: number;
+        height?: number;
+        props?: any;
+    }
+
+    // Overload for backward compatibility and new object-based signature
+    function openWindow(config: WindowConfig): void;
     function openWindow(
         id: string,
         title: string,
         icon: any,
-        component: any | (() => { component: any; props?: any }),
+        component: any,
+    ): void;
+    function openWindow(
+        arg1: string | WindowConfig,
+        arg2?: string,
+        arg3?: any,
+        arg4?: any,
     ) {
+        let id: string, title: string, icon: any, component: any;
+        let width: number | undefined;
+        let height: number | undefined;
+        let props: any | undefined;
+
+        if (typeof arg1 === "object" && arg1 !== null) {
+            // Object signature
+            const config = arg1 as WindowConfig;
+            id = config.id;
+            title = config.title;
+            icon = config.icon;
+            component = config.component;
+            width = config.width;
+            height = config.height;
+            props = config.props;
+        } else {
+            // Legacy signature
+            id = arg1 as string;
+            title = arg2 as string;
+            icon = arg3;
+            component = arg4;
+        }
+
         // Check if window is already open
         const existingWindow = activeWindows.find((w) => w.id === id);
         if (existingWindow) {
@@ -183,6 +276,8 @@
                             zIndex,
                             x,
                             y,
+                            width,
+                            height,
                         },
                     ];
                     return;
@@ -202,7 +297,7 @@
         // Direct component
         activeWindows = [
             ...activeWindows,
-            { id, title, icon, component, zIndex, x, y },
+            { id, title, icon, component, props, zIndex, x, y, width, height },
         ];
     }
 
@@ -243,12 +338,17 @@
     }
 
     function openWallpaperSelector() {
-        openWindow("wallpaper", "Change Wallpaper", Image, () => ({
-            component: WallpaperSelector,
-            props: {
-                onClose: () => closeWindow("wallpaper"),
-            },
-        }));
+        openWindow({
+            id: "wallpaper",
+            title: "Change Wallpaper",
+            icon: Image,
+            component: () => ({
+                component: WallpaperSelector,
+                props: {
+                    onClose: () => closeWindow("wallpaper"),
+                },
+            }),
+        });
         closeContextMenu();
     }
 
@@ -380,6 +480,8 @@
             onFocus={() => bringToFront(window.id)}
             x={window.x}
             y={window.y}
+            width={window.width}
+            height={window.height}
         >
             {#snippet children()}
                 {#if window.component}

@@ -1,8 +1,23 @@
+<script module lang="ts">
+    import { Activity as AppIcon } from "@lucide/svelte";
+
+    export function launch(api: any, component: any) {
+        api.openWindow({
+            id: "dashboard",
+            title: "Dashboard",
+            icon: AppIcon,
+            component: component,
+            width: 1024,
+            height: 768
+        });
+    }
+</script>
+
 <script lang="ts">
     import { onMount } from "svelte";
     import { api, type Pool, type Disk, type Share } from "$lib/api";
     import { formatBytes } from "$lib/utils";
-    import { HardDrive, Database, FolderOpen, Bell } from "@lucide/svelte";
+    import { HardDrive, Database, FolderOpen, Bell, Activity } from "@lucide/svelte";
     import Chart from "chart.js/auto";
 
     let pools = $state<Pool[]>([]);

@@ -1,3 +1,18 @@
+<script module lang="ts">
+    import { Users as AppIcon } from "@lucide/svelte";
+
+    export function launch(api: any, component: any) {
+        api.openWindow({
+            id: "users",
+            title: "User Management",
+            icon: AppIcon,
+            component: component,
+            width: 800,
+            height: 600
+        });
+    }
+</script>
+
 <script lang="ts">
     import { onMount, getContext } from "svelte";
     import { api, type User } from "$lib/api";

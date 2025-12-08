@@ -1,3 +1,18 @@
+<script module lang="ts">
+    import { FolderOpen as AppIcon } from "@lucide/svelte";
+
+    export function launch(api: any, component: any) {
+        api.openWindow({
+            id: "shares",
+            title: "Share Management",
+            icon: AppIcon,
+            component: component,
+            width: 900,
+            height: 700
+        });
+    }
+</script>
+
 <script lang="ts">
     import { onMount, getContext } from "svelte";
     import { api, type Share } from "$lib/api";

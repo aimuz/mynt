@@ -1,3 +1,18 @@
+<script module lang="ts">
+    import { Database as AppIcon } from "@lucide/svelte";
+
+    export function launch(api: any, component: any) {
+        api.openWindow({
+            id: "storage",
+            title: "Storage Manager",
+            icon: AppIcon,
+            component: component,
+            width: 900,
+            height: 600
+        });
+    }
+</script>
+
 <script lang="ts">
     import { onMount, getContext } from "svelte";
     import { api, type Pool } from "$lib/api";
