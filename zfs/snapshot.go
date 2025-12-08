@@ -55,6 +55,10 @@ func (m *Manager) ListSnapshots(ctx context.Context, datasetName string) ([]Snap
 		return nil, fmt.Errorf("dataset name is required")
 	}
 
+	if err := validateName(datasetName); err != nil {
+		return nil, err
+	}
+
 	args := []string{"list", "-j", "-p", "-t", "snapshot", "-o", zfsSnapshotProperties, datasetName}
 	out, err := m.exec.Output(ctx, "zfs", args...)
 	if err != nil {
