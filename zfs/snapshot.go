@@ -1,8 +1,11 @@
 package zfs
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,63 +47,84 @@ func (m *Manager) CreateSnapshot(ctx context.Context, req CreateSnapshotRequest)
 	return snapshot, nil
 }
 
+const zfsSnapshotProperties = "name,used,referenced,creation"
+
 // ListSnapshots returns all snapshots for a specific dataset.
 func (m *Manager) ListSnapshots(ctx context.Context, datasetName string) ([]Snapshot, error) {
 	if datasetName == "" {
 		return nil, fmt.Errorf("dataset name is required")
 	}
 
-	dataset, err := gozfs.GetDataset(datasetName)
+	if err := validateName(datasetName); err != nil {
+		return nil, err
+	}
+
+	args := []string{"list", "-j", "-p", "-t", "snapshot", "-o", zfsSnapshotProperties, datasetName}
+	out, err := m.exec.Output(ctx, "zfs", args...)
 	if err != nil {
-		return nil, fmt.Errorf("dataset not found: %s: %w", datasetName, err)
+		return nil, fmt.Errorf("zfs list snapshots: %w", err)
 	}
 
-	gozfsSnapshots, err := dataset.Snapshots()
-	if err != nil {
-		return nil, fmt.Errorf("failed to list snapshots: %w", err)
+	var listJSON ZFSListJSON
+	if err := json.Unmarshal(out, &listJSON); err != nil {
+		return nil, fmt.Errorf("parse zfs list snapshots: %w", err)
 	}
 
-	snapshots := make([]Snapshot, 0, len(gozfsSnapshots))
-	for _, snap := range gozfsSnapshots {
-		// Parse creation time from properties if available
-		createdAt := time.Now().Format(time.RFC3339)
-		if prop, err := snap.GetProperty("creation"); err == nil {
-			if t, err := parseZFSTimestamp(prop); err == nil {
-				createdAt = t.Format(time.RFC3339)
-			}
-		}
-
-		// Detect source from snapshot name
-		// Auto snapshots use format: auto-{policyName}-{timestamp}
-		source := "manual"
-		parts := strings.Split(snap.Name, "@")
-		if len(parts) == 2 {
-			snapName := parts[1]
-			if strings.HasPrefix(snapName, "auto-") {
-				// Extract policy name: auto-{policyName}-{timestamp}
-				// Remove "auto-" prefix, then find the last "-" before timestamp
-				rest := strings.TrimPrefix(snapName, "auto-")
-				// Timestamp format is YYYYMMDD-HHMMSS (15 chars)
-				if len(rest) > 16 {
-					policyName := rest[:len(rest)-16] // Remove "-YYYYMMDD-HHMMSS"
-					source = "policy:" + policyName
-				} else {
-					source = "policy:auto"
-				}
-			}
-		}
-
-		snapshots = append(snapshots, Snapshot{
-			Name:       snap.Name,
-			Dataset:    datasetName,
-			CreatedAt:  createdAt,
-			Used:       snap.Used,
-			Referenced: snap.Referenced,
-			Source:     source,
-		})
+	snapshots := make([]Snapshot, 0, len(listJSON.Datasets))
+	for _, sj := range listJSON.Datasets {
+		snapshots = append(snapshots, buildSnapshot(sj, datasetName))
 	}
+
+	slices.SortFunc(snapshots, func(a, b Snapshot) int {
+		return cmp.Or(
+			strings.Compare(a.CreatedAt, b.CreatedAt),
+			strings.Compare(a.Name, b.Name),
+		)
+	})
 
 	return snapshots, nil
+}
+
+// buildSnapshot constructs a Snapshot from JSON data.
+func buildSnapshot(sj *DatasetListJSON, datasetName string) Snapshot {
+	// Parse creation time from Unix epoch
+	var createdAt string
+	if prop := sj.Properties["creation"]; prop != nil {
+		if t, err := parseZFSTimestamp(prop.Value); err == nil {
+			createdAt = t.Format(time.RFC3339)
+		}
+	}
+
+	return Snapshot{
+		Name:       sj.Name,
+		Dataset:    datasetName,
+		CreatedAt:  createdAt,
+		Used:       parseUint(sj.GetProp("used")),
+		Referenced: parseUint(sj.GetProp("referenced")),
+		Source:     detectSnapshotSource(sj.Name),
+	}
+}
+
+const timestampSuffixLen = 16
+
+// detectSnapshotSource determines if a snapshot was created manually or by policy.
+func detectSnapshotSource(snapshotName string) string {
+	parts := strings.Split(snapshotName, "@")
+	if len(parts) != 2 {
+		return "manual"
+	}
+
+	snapName := parts[1]
+	if !strings.HasPrefix(snapName, "auto-") {
+		return "manual"
+	}
+
+	// Format: auto-{policyName}-{timestamp}, where the timestamp suffix (-YYYYMMDD-HHMMSS) is 16 characters long.
+	rest := strings.TrimPrefix(snapName, "auto-")
+	if len(rest) > timestampSuffixLen {
+		return "policy:" + rest[:len(rest)-timestampSuffixLen]
+	}
+	return "policy:auto"
 }
 
 // DestroySnapshot destroys a ZFS snapshot.

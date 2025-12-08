@@ -1,12 +1,5 @@
 package zfs
 
-import (
-	"cmp"
-	"strings"
-
-	gozfs "github.com/mistifyio/go-zfs/v4"
-)
-
 // PoolStatus represents the health status of a pool.
 type PoolStatus string
 
@@ -150,38 +143,4 @@ type CreatePoolRequest struct {
 type CreateSnapshotRequest struct {
 	Dataset string `json:"dataset"` // pool/dataset name
 	Name    string `json:"name"`    // snapshot name (without @)
-}
-
-// fromGozfsPool converts a go-zfs Zpool to our Pool type (used by ListPools).
-func fromGozfsPool(z *gozfs.Zpool) Pool {
-	return Pool{
-		Name:      z.Name,
-		Size:      z.Size,
-		Allocated: z.Allocated,
-		Free:      z.Free,
-		Frag:      z.Fragmentation,
-		Health:    PoolStatus(z.Health),
-	}
-}
-
-// fromGozfsDataset converts a go-zfs Dataset to our Dataset type.
-func fromGozfsDataset(d *gozfs.Dataset) Dataset {
-	used := d.Used
-	if d.Type == gozfs.DatasetVolume {
-		used = d.Usedbydataset
-	}
-	poolName, _, _ := strings.Cut(d.Name, "/")
-	return Dataset{
-		Name:          d.Name,
-		Pool:          poolName,
-		Type:          DatasetType(d.Type),
-		Used:          used,
-		Available:     d.Avail,
-		Referenced:    d.Referenced,
-		Mountpoint:    d.Mountpoint,
-		Compression:   d.Compression,
-		Encryption:    "", // Need to get from properties
-		Deduplication: "", // Need to get from properties
-		Quota:         cmp.Or(d.Quota, d.Volsize),
-	}
 }
