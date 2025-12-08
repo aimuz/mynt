@@ -3,6 +3,7 @@ package zfs
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -316,9 +317,14 @@ func parsePoolStatus(output, poolName string) ([]VDevDetail, error) {
 		}
 
 		// This is a disk
+		// Note: name could be just device name (e.g. "sda") or an absolute path (e.g. "/dev/disk/by-id/...")
+		path := name
+		if !strings.HasPrefix(name, "/") {
+			path = filepath.Join("/dev", name)
+		}
 		disk := DiskDetail{
 			Name:      name,
-			Path:      "/dev/" + name,
+			Path:      path,
 			Status:    status,
 			Replacing: strings.Contains(line, "replacing"),
 		}
@@ -347,6 +353,8 @@ func parsePoolStatus(output, poolName string) ([]VDevDetail, error) {
 }
 
 // parseResilverStatus parses zpool status output to extract resilver progress.
+// TODO(zfs2.3): ZFS 2.3+ supports `zpool status -j` JSON output, which would
+// simplify parsing significantly. Consider switching when ZFS 2.3 is widely adopted.
 func parseResilverStatus(output string) *ResilverStatus {
 	status := &ResilverStatus{
 		InProgress: false,
@@ -359,6 +367,12 @@ func parseResilverStatus(output string) *ResilverStatus {
 		if strings.Contains(line, "resilver in progress") {
 			status.InProgress = true
 			continue
+		}
+
+		// Parse scan line: "scanned 112G of 1.81T at 1.14G/s, 0h24m to go"
+		// or "scanned 50.0G resilvered 25.0G at 100M/s, 0:30:00 to go"
+		if strings.Contains(line, "scanned") && strings.Contains(line, "at") {
+			status.ScannedBytes, status.TotalBytes, status.Rate = parseScanLine(line)
 		}
 
 		// Parse progress line: "... 50.0% done, ..."
@@ -374,7 +388,7 @@ func parseResilverStatus(output string) *ResilverStatus {
 			}
 		}
 
-		// Parse time remaining: "... 1h30m to go"
+		// Parse time remaining: "... 1h30m to go" or "... 0:30:00 to go"
 		if idx := strings.Index(line, " to go"); idx > 0 {
 			// Find the time part before "to go"
 			parts := strings.Fields(line[:idx])
@@ -385,4 +399,64 @@ func parseResilverStatus(output string) *ResilverStatus {
 	}
 
 	return status
+}
+
+// parseScanLine parses a scan line like "112G scanned of 1.81T at 1.14G/s"
+// Returns scanned bytes, total bytes, and rate in bytes/sec.
+func parseScanLine(line string) (scanned, total, rate uint64) {
+	fields := strings.Fields(line)
+	for i, f := range fields {
+		// Look for "XXX scanned" - size comes BEFORE keyword
+		if f == "scanned" && i > 0 {
+			scanned = parseSize(fields[i-1])
+		}
+		// Look for "of XXX"
+		if f == "of" && i+1 < len(fields) {
+			total = parseSize(fields[i+1])
+		}
+		// Look for "at XXX/s" or "at XXX/s,"
+		if f == "at" && i+1 < len(fields) {
+			rateStr := fields[i+1]
+			rateStr = strings.TrimSuffix(rateStr, ",")
+			rateStr = strings.TrimSuffix(rateStr, "/s")
+			rate = parseSize(rateStr)
+		}
+	}
+	return
+}
+
+// parseSize parses size strings like "112G", "1.81T", "100M" to bytes.
+func parseSize(s string) uint64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+
+	multiplier := uint64(1)
+	lastChar := s[len(s)-1]
+
+	switch lastChar {
+	case 'K', 'k':
+		multiplier = 1024
+		s = s[:len(s)-1]
+	case 'M', 'm':
+		multiplier = 1024 * 1024
+		s = s[:len(s)-1]
+	case 'G', 'g':
+		multiplier = 1024 * 1024 * 1024
+		s = s[:len(s)-1]
+	case 'T', 't':
+		multiplier = 1024 * 1024 * 1024 * 1024
+		s = s[:len(s)-1]
+	case 'P', 'p':
+		multiplier = 1024 * 1024 * 1024 * 1024 * 1024
+		s = s[:len(s)-1]
+	}
+
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+
+	return uint64(val * float64(multiplier))
 }

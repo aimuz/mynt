@@ -170,9 +170,16 @@
                     }
                 }
             }
+            // Use redundancy property for accurate risk description
+            let description = `存储池降级：${failedDisks} 块磁盘故障。`;
+            if (pool.redundancy === 0) {
+                description += " 冗余已耗尽，再有磁盘故障可能导致数据丢失！";
+            } else {
+                description += ` 仍可承受 ${pool.redundancy} 块磁盘故障。`;
+            }
             return {
-                level: "high",
-                description: `存储池降级：${failedDisks} 块磁盘故障。再坏一盘可能导致数据丢失！`,
+                level: pool.redundancy === 0 ? "critical" : "high",
+                description: description,
                 recommendation: "请尽快更换故障磁盘。",
             };
         }

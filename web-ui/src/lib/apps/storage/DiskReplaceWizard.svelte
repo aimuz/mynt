@@ -31,7 +31,6 @@
     let selectedNewDisk = $state<string | null>(null);
     let loading = $state(false);
     let error = $state<string | null>(null);
-    let rebuildStarted = $state(false);
 
     onMount(() => {
         loadAvailableDisks();
@@ -58,6 +57,7 @@
             }
             locateLedOn = !locateLedOn;
         } catch (err) {
+            error = err instanceof Error ? err.message : "无法切换定位LED";
             console.error("Failed to toggle LED:", err);
         }
     }
@@ -69,7 +69,6 @@
         error = null;
         try {
             await api.replaceDisk(poolName, faultedDisk.name, selectedNewDisk);
-            rebuildStarted = true;
             currentStep = 4;
             onComplete?.();
         } catch (err) {
