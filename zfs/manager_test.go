@@ -181,3 +181,25 @@ func TestVdevTypeFromJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildDataset_MissingProperties(t *testing.T) {
+	// this dataset is missing all properties
+	dj := &DatasetListJSON{
+		Name: "pool/test",
+		Type: "FILESYSTEM",
+		Pool: "pool",
+	}
+
+	// This should not panic
+	ds := buildDataset(dj)
+
+	if ds.Name != "pool/test" {
+		t.Errorf("expected name 'pool/test', got '%s'", ds.Name)
+	}
+	if ds.Used != 0 {
+		t.Errorf("expected used 0, got %d", ds.Used)
+	}
+	if ds.Available != 0 {
+		t.Errorf("expected available 0, got %d", ds.Available)
+	}
+}

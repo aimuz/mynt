@@ -7,7 +7,6 @@ import (
 	"iter"
 	"slices"
 	"strconv"
-	"strings"
 
 	gozfs "github.com/mistifyio/go-zfs/v4"
 	"go.aimuz.me/mynt/sysexec"
@@ -90,13 +89,9 @@ func (m *Manager) listDatasets(ctx context.Context, names ...string) ([]Dataset,
 	}
 
 	datasets := make([]Dataset, 0, len(listJSON.Datasets))
-	for _, dj := range listJSON.Datasets {
+	for _, dj := range sortMapIter(listJSON.Datasets) {
 		datasets = append(datasets, buildDataset(dj))
 	}
-
-	slices.SortFunc(datasets, func(a, b Dataset) int {
-		return strings.Compare(a.Name, b.Name)
-	})
 
 	return datasets, nil
 }
@@ -108,14 +103,24 @@ func buildDataset(dj *DatasetListJSON) Dataset {
 		dsType = DatasetVolume
 	}
 
-	used := parseUint(dj.Properties["used"].Value)
-	if dsType == DatasetVolume {
-		used = parseUint(dj.Properties["usedbydataset"].Value)
+	getPropValue := func(key string) string {
+		if dj.Properties == nil {
+			return ""
+		}
+		if p, ok := dj.Properties[key]; ok && p != nil {
+			return p.Value
+		}
+		return ""
 	}
 
-	quota := parseUint(dj.Properties["quota"].Value)
+	used := parseUint(getPropValue("used"))
 	if dsType == DatasetVolume {
-		quota = parseUint(dj.Properties["volsize"].Value)
+		used = parseUint(getPropValue("usedbydataset"))
+	}
+
+	quota := parseUint(getPropValue("quota"))
+	if dsType == DatasetVolume {
+		quota = parseUint(getPropValue("volsize"))
 	}
 
 	return Dataset{
@@ -123,14 +128,14 @@ func buildDataset(dj *DatasetListJSON) Dataset {
 		Pool:          dj.Pool,
 		Type:          dsType,
 		Used:          used,
-		Available:     parseUint(dj.Properties["available"].Value),
-		Referenced:    parseUint(dj.Properties["referenced"].Value),
-		Mountpoint:    dj.Properties["mountpoint"].Value,
-		Compression:   dj.Properties["compression"].Value,
-		Encryption:    dj.Properties["encryption"].Value,
-		Deduplication: dj.Properties["dedup"].Value,
+		Available:     parseUint(getPropValue("available")),
+		Referenced:    parseUint(getPropValue("referenced")),
+		Mountpoint:    getPropValue("mountpoint"),
+		Compression:   getPropValue("compression"),
+		Encryption:    getPropValue("encryption"),
+		Deduplication: getPropValue("dedup"),
 		Quota:         quota,
-		Reservation:   parseUint(dj.Properties["reservation"].Value),
+		Reservation:   parseUint(getPropValue("reservation")),
 	}
 }
 

@@ -1,9 +1,11 @@
 package zfs
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -67,6 +69,13 @@ func (m *Manager) ListSnapshots(ctx context.Context, datasetName string) ([]Snap
 		snapshots = append(snapshots, buildSnapshot(sj, datasetName))
 	}
 
+	slices.SortFunc(snapshots, func(a, b Snapshot) int {
+		return cmp.Or(
+			strings.Compare(a.CreatedAt, b.CreatedAt),
+			strings.Compare(a.Name, b.Name),
+		)
+	})
+
 	return snapshots, nil
 }
 
@@ -80,15 +89,27 @@ func buildSnapshot(sj *DatasetListJSON, datasetName string) Snapshot {
 		}
 	}
 
+	getPropValue := func(key string) string {
+		if sj.Properties == nil {
+			return ""
+		}
+		if p, ok := sj.Properties[key]; ok && p != nil {
+			return p.Value
+		}
+		return ""
+	}
+
 	return Snapshot{
 		Name:       sj.Name,
 		Dataset:    datasetName,
 		CreatedAt:  createdAt,
-		Used:       parseUint(sj.Properties["used"].Value),
-		Referenced: parseUint(sj.Properties["referenced"].Value),
+		Used:       parseUint(getPropValue("used")),
+		Referenced: parseUint(getPropValue("referenced")),
 		Source:     detectSnapshotSource(sj.Name),
 	}
 }
+
+const timestampSuffixLen = 16
 
 // detectSnapshotSource determines if a snapshot was created manually or by policy.
 func detectSnapshotSource(snapshotName string) string {
@@ -102,10 +123,10 @@ func detectSnapshotSource(snapshotName string) string {
 		return "manual"
 	}
 
-	// Format: auto-{policyName}-{timestamp} where timestamp is YYYYMMDD-HHMMSS (15 chars)
+	// Format: auto-{policyName}-{timestamp} where timestamp is YYYYMMDD-HHMMSS (16 chars)
 	rest := strings.TrimPrefix(snapName, "auto-")
-	if len(rest) > 16 {
-		return "policy:" + rest[:len(rest)-16]
+	if len(rest) > timestampSuffixLen {
+		return "policy:" + rest[:len(rest)-timestampSuffixLen]
 	}
 	return "policy:auto"
 }
