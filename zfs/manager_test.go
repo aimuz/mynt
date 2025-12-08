@@ -121,12 +121,12 @@ func TestParseResilverFromJSON(t *testing.T) {
 			input: &ScanStatsJSON{
 				Function:     "RESILVER",
 				State:        "SCANNING",
-				Examined:     "500G",
-				ToExamine:    "1T",
-				BytesPerScan: "100M",
+				Examined:     "536870912000",  // 500G in bytes
+				ToExamine:    "1099511627776", // 1T in bytes
+				BytesPerScan: "104857600",     // 100M in bytes
 			},
 			wantProgress: true,
-			wantPercent:  48.83, // 500G / 1T = 500*1024^3 / 1024^4 ≈ 48.83%
+			wantPercent:  48.83, // 500G / 1T ≈ 48.83%
 		},
 		{
 			name: "resilver_finished",
@@ -156,33 +156,6 @@ func TestParseResilverFromJSON(t *testing.T) {
 	}
 }
 
-func TestParseSize(t *testing.T) {
-	tests := []struct {
-		input string
-		want  uint64
-	}{
-		{"100", 100},
-		{"1K", 1024},
-		{"1k", 1024},
-		{"100M", 100 * 1024 * 1024},
-		{"1G", 1024 * 1024 * 1024},
-		{"2T", 2 * 1024 * 1024 * 1024 * 1024},
-		{"1.5G", 1610612736}, // 1.5 * 1024^3
-		{"", 0},
-		{"invalid", 0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := parseSize(tt.input)
-			// Allow 5% tolerance for floating point sizes
-			if !withinTolerance(got, tt.want, 0.05) {
-				t.Errorf("parseSize(%q) = %d, want %d", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestVdevTypeFromJSON(t *testing.T) {
 	tests := []struct {
 		input string
@@ -205,16 +178,4 @@ func TestVdevTypeFromJSON(t *testing.T) {
 			}
 		})
 	}
-}
-
-// withinTolerance checks if got is within tolerance percent of want.
-func withinTolerance(got, want uint64, tolerance float64) bool {
-	if want == 0 {
-		return got == 0
-	}
-	diff := float64(got) - float64(want)
-	if diff < 0 {
-		diff = -diff
-	}
-	return diff/float64(want) <= tolerance
 }

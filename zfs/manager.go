@@ -164,7 +164,7 @@ func (m *Manager) GetPool(ctx context.Context, name string) (*Pool, error) {
 
 // GetPoolVDevs gets vdev structure using `zpool status -j` JSON output.
 func (m *Manager) GetPoolVDevs(ctx context.Context, poolName string) ([]VDevDetail, error) {
-	out, err := m.exec.Output(ctx, "zpool", "status", "-j", poolName)
+	out, err := m.exec.Output(ctx, "zpool", "status", "-p", "-j", poolName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool status: %w", err)
 	}
@@ -193,7 +193,7 @@ func (m *Manager) ReplaceDisk(ctx context.Context, poolName, oldDisk, newDisk st
 
 // GetResilverStatus gets the resilver (rebuild) status of a pool using JSON output.
 func (m *Manager) GetResilverStatus(ctx context.Context, poolName string) (*ResilverStatus, error) {
-	out, err := m.exec.Output(ctx, "zpool", "status", "-j", poolName)
+	out, err := m.exec.Output(ctx, "zpool", "status", "-p", "-j", poolName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool status: %w", err)
 	}
@@ -349,9 +349,9 @@ func parseResilverFromJSON(scan *ScanStatsJSON) *ResilverStatus {
 	// Check if this is an active resilver
 	if scan.Function == "RESILVER" && scan.State == "SCANNING" {
 		status.InProgress = true
-		status.ScannedBytes = parseSize(scan.Examined)
-		status.TotalBytes = parseSize(scan.ToExamine)
-		status.Rate = parseSize(scan.BytesPerScan)
+		status.ScannedBytes = parseUint(scan.Examined)
+		status.TotalBytes = parseUint(scan.ToExamine)
+		status.Rate = parseUint(scan.BytesPerScan)
 
 		// Calculate percent done
 		if status.TotalBytes > 0 {
@@ -369,33 +369,4 @@ func parseResilverFromJSON(scan *ScanStatsJSON) *ResilverStatus {
 func parseUint(s string) uint64 {
 	v, _ := strconv.ParseUint(s, 10, 64)
 	return v
-}
-
-// parseSize parses size strings like "112G", "1.81T", "100M" to bytes.
-func parseSize(s string) uint64 {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0
-	}
-
-	multiplier := uint64(1)
-	multipliers := map[byte]uint64{
-		'K': 1 << 10, 'k': 1 << 10,
-		'M': 1 << 20, 'm': 1 << 20,
-		'G': 1 << 30, 'g': 1 << 30,
-		'T': 1 << 40, 't': 1 << 40,
-		'P': 1 << 50, 'p': 1 << 50,
-	}
-	lastChar := s[len(s)-1]
-	if m, ok := multipliers[lastChar]; ok {
-		multiplier = m
-		s = s[:len(s)-1]
-	}
-
-	val, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return 0
-	}
-
-	return uint64(val * float64(multiplier))
 }
