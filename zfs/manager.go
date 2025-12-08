@@ -136,30 +136,40 @@ func (m *Manager) GetPool(ctx context.Context, name string) (*Pool, error) {
 	}
 	pool := fromGozfsPool(zpool)
 
-	// Parse vdev structure from zpool status
+	// Parse vdev structure from zpool status (supplementary info)
 	vdevs, err := m.GetPoolVDevs(ctx, name)
 	if err != nil {
-		// Log but don't fail - vdev info is supplementary
 		logger.Warn("failed to parse vdev structure", "pool", name, "error", err)
-	} else {
-		pool.VDevs = make([]VDev, len(vdevs))
-		diskCount := 0
-		for i, vd := range vdevs {
-			pool.VDevs[i] = VDev{
-				Type:   vd.Type,
-				Disks:  make([]string, len(vd.Children)),
-				Status: vd.Status,
-			}
-			for j, child := range vd.Children {
-				pool.VDevs[i].Disks[j] = child.Path
-			}
-			diskCount += len(vd.Children)
-		}
-		pool.DiskCount = diskCount
-		pool.Redundancy = calculateRedundancy(vdevs)
+		return &pool, nil
 	}
 
+	populateVDevInfo(&pool, vdevs)
 	return &pool, nil
+}
+
+// populateVDevInfo fills pool vdev information from VDevDetail slice.
+func populateVDevInfo(pool *Pool, vdevs []VDevDetail) {
+	pool.VDevs = make([]VDev, len(vdevs))
+	diskCount := 0
+	for i, vd := range vdevs {
+		pool.VDevs[i] = VDev{
+			Type:   vd.Type,
+			Disks:  diskPathsFromChildren(vd.Children),
+			Status: vd.Status,
+		}
+		diskCount += len(vd.Children)
+	}
+	pool.DiskCount = diskCount
+	pool.Redundancy = calculateRedundancy(vdevs)
+}
+
+// diskPathsFromChildren extracts disk paths from DiskDetail slice.
+func diskPathsFromChildren(children []DiskDetail) []string {
+	paths := make([]string, len(children))
+	for i, c := range children {
+		paths[i] = c.Path
+	}
+	return paths
 }
 
 // GetPoolVDevs gets vdev structure using `zpool status -j` JSON output.
@@ -265,48 +275,55 @@ func calculateRedundancy(vdevs []VDevDetail) int {
 }
 
 // parseVDevsFromJSON converts JSON vdevs to VDevDetail slice.
-// It walks the JSON tree recursively to extract vdev structure.
-func parseVDevsFromJSON(jsonVDevs map[string]*VDevJSON) []VDevDetail {
+// It iterates through the tree structure: root -> vdev (mirror/raidz/disk) -> disk
+func parseVDevsFromJSON(jsonVDevs map[string]*Vdev) []VDevDetail {
 	var vdevs []VDevDetail
-
-	for _, rootVDev := range jsonVDevs {
-		// Skip the root vdev itself, process its children
-		if rootVDev.VDevType == "root" {
-			for _, childVDev := range rootVDev.VDevs {
-				vdev := vdevFromJSON(childVDev)
-				vdevs = append(vdevs, vdev)
-			}
+	for _, root := range jsonVDevs {
+		if root.VDevType != "root" {
+			continue
+		}
+		for _, v := range root.VDevs {
+			vdevs = append(vdevs, vdevDetailFromVdev(v))
 		}
 	}
-
 	return vdevs
 }
 
-// vdevFromJSON converts a single VDevJSON to VDevDetail.
-func vdevFromJSON(v *VDevJSON) VDevDetail {
+// vdevDetailFromVdev converts a single Vdev node to VDevDetail.
+func vdevDetailFromVdev(v *Vdev) VDevDetail {
 	vdev := VDevDetail{
 		Name:   v.Name,
 		Type:   vdevTypeFromJSON(v.VDevType),
 		Status: v.State,
 	}
-
-	// If this vdev has children, they are the disks
-	if len(v.VDevs) > 0 {
-		for _, child := range v.VDevs {
-			disk := diskFromJSON(child)
-			vdev.Children = append(vdev.Children, disk)
-		}
-	} else {
-		// This is a single disk (stripe pool)
-		disk := diskFromJSON(v)
-		vdev.Children = []DiskDetail{disk}
+	if len(v.VDevs) == 0 {
+		// Single disk (stripe pool)
+		vdev.Children = []DiskDetail{diskDetailFromVdev(v, false)}
+		return vdev
 	}
-
+	// Mirror/raidz with child disks
+	vdev.Children = collectChildDisks(v.VDevs)
 	return vdev
 }
 
-// diskFromJSON converts a VDevJSON to DiskDetail.
-func diskFromJSON(v *VDevJSON) DiskDetail {
+// collectChildDisks extracts DiskDetail from child vdevs, handling "replacing" vdevs.
+func collectChildDisks(children map[string]*Vdev) []DiskDetail {
+	var disks []DiskDetail
+	for _, child := range children {
+		if child.VDevType == "replacing" {
+			// Replacing vdev contains old and new disk as children
+			for _, d := range child.VDevs {
+				disks = append(disks, diskDetailFromVdev(d, true))
+			}
+		} else {
+			disks = append(disks, diskDetailFromVdev(child, false))
+		}
+	}
+	return disks
+}
+
+// diskDetailFromVdev creates a DiskDetail from a Vdev node.
+func diskDetailFromVdev(v *Vdev, replacing bool) DiskDetail {
 	return DiskDetail{
 		Name:      v.Name,
 		Path:      v.Path,
@@ -314,7 +331,7 @@ func diskFromJSON(v *VDevJSON) DiskDetail {
 		Read:      parseUint(v.ReadErrors),
 		Write:     parseUint(v.WriteErrors),
 		Checksum:  parseUint(v.ChecksumErrors),
-		Replacing: false, // TODO: detect replacing state from JSON
+		Replacing: replacing,
 	}
 }
 

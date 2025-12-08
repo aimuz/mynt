@@ -7,7 +7,7 @@ import (
 func TestParseVDevsFromJSON(t *testing.T) {
 	tests := []struct {
 		name      string
-		input     map[string]*VDevJSON
+		input     map[string]*Vdev
 		wantCount int
 		wantTypes []string
 	}{
@@ -18,12 +18,12 @@ func TestParseVDevsFromJSON(t *testing.T) {
 		},
 		{
 			name: "stripe_pool",
-			input: map[string]*VDevJSON{
+			input: map[string]*Vdev{
 				"test": {
 					Name:     "test",
 					VDevType: "root",
 					State:    "ONLINE",
-					VDevs: map[string]*VDevJSON{
+					VDevs: map[string]*Vdev{
 						"sda": {
 							Name:     "sda",
 							VDevType: "disk",
@@ -44,17 +44,17 @@ func TestParseVDevsFromJSON(t *testing.T) {
 		},
 		{
 			name: "mirror_pool",
-			input: map[string]*VDevJSON{
+			input: map[string]*Vdev{
 				"tank": {
 					Name:     "tank",
 					VDevType: "root",
 					State:    "ONLINE",
-					VDevs: map[string]*VDevJSON{
+					VDevs: map[string]*Vdev{
 						"mirror-0": {
 							Name:     "mirror-0",
 							VDevType: "mirror",
 							State:    "ONLINE",
-							VDevs: map[string]*VDevJSON{
+							VDevs: map[string]*Vdev{
 								"sda": {
 									Name:     "sda",
 									VDevType: "disk",

@@ -15,15 +15,15 @@ type OutputVersion struct {
 
 // PoolJSON represents a pool in the JSON output.
 type PoolJSON struct {
-	Name       string               `json:"name"`
-	State      string               `json:"state"`
-	PoolGUID   string               `json:"pool_guid"`
-	TXG        string               `json:"txg"`
-	SPAVersion string               `json:"spa_version"`
-	ZPLVersion string               `json:"zpl_version"`
-	ScanStats  *ScanStatsJSON       `json:"scan_stats,omitempty"`
-	VDevs      map[string]*VDevJSON `json:"vdevs"`
-	ErrorCount string               `json:"error_count"`
+	Name       string           `json:"name"`
+	State      string           `json:"state"`
+	PoolGUID   string           `json:"pool_guid"`
+	TXG        string           `json:"txg"`
+	SPAVersion string           `json:"spa_version"`
+	ZPLVersion string           `json:"zpl_version"`
+	ScanStats  *ScanStatsJSON   `json:"scan_stats,omitempty"`
+	VDevs      map[string]*Vdev `json:"vdevs"`
+	ErrorCount string           `json:"error_count"`
 }
 
 // ScanStatsJSON represents scan (scrub/resilver) statistics.
@@ -46,21 +46,21 @@ type ScanStatsJSON struct {
 
 // VDevJSON represents a vdev in the JSON output.
 // VDevs are nested recursively (root -> mirror/raidz -> disk).
-type VDevJSON struct {
-	Name           string               `json:"name"`
-	VDevType       string               `json:"vdev_type"` // "root", "mirror", "raidz", "raidz2", "raidz3", "disk"
-	GUID           string               `json:"guid"`
-	Path           string               `json:"path,omitempty"` // Device path (for disk vdevs)
-	Class          string               `json:"class"`          // "normal", "log", "cache", "spare"
-	State          string               `json:"state"`          // "ONLINE", "DEGRADED", "FAULTED", "OFFLINE"
-	AllocSpace     string               `json:"alloc_space"`
-	TotalSpace     string               `json:"total_space"`
-	DefSpace       string               `json:"def_space"`
-	PhysSpace      string               `json:"phys_space"`
-	RepDevSize     string               `json:"rep_dev_size,omitempty"`
-	ReadErrors     string               `json:"read_errors"`
-	WriteErrors    string               `json:"write_errors"`
-	ChecksumErrors string               `json:"checksum_errors"`
-	SlowIOs        string               `json:"slow_ios,omitempty"`
-	VDevs          map[string]*VDevJSON `json:"vdevs,omitempty"` // Nested child vdevs
+type Vdev struct {
+	Name           string           `json:"name"`
+	VDevType       string           `json:"vdev_type"` // "root", "mirror", "raidz", "raidz2", "raidz3", "disk"
+	GUID           string           `json:"guid"`
+	Path           string           `json:"path,omitempty"` // Device path (for disk vdevs)
+	Class          string           `json:"class"`          // "normal", "log", "cache", "spare"
+	State          string           `json:"state"`          // "ONLINE", "DEGRADED", "FAULTED", "OFFLINE"
+	AllocSpace     string           `json:"alloc_space"`
+	TotalSpace     string           `json:"total_space"`
+	DefSpace       string           `json:"def_space"`
+	PhysSpace      string           `json:"phys_space"`
+	RepDevSize     string           `json:"rep_dev_size,omitempty"`
+	ReadErrors     string           `json:"read_errors"`
+	WriteErrors    string           `json:"write_errors"`
+	ChecksumErrors string           `json:"checksum_errors"`
+	SlowIOs        string           `json:"slow_ios,omitempty"`
+	VDevs          map[string]*Vdev `json:"vdevs,omitempty"` // Nested child vdevs
 }
