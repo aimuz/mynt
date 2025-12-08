@@ -1,6 +1,8 @@
 package zfs
 
 import (
+	"context"
+	"strings"
 	"testing"
 )
 
@@ -201,5 +203,108 @@ func TestBuildDataset_MissingProperties(t *testing.T) {
 	}
 	if ds.Available != 0 {
 		t.Errorf("expected available 0, got %d", ds.Available)
+	}
+}
+
+func TestListDatasets_Validation(t *testing.T) {
+	tests := []struct {
+		name        string
+		datasetName string
+		wantErr     bool
+	}{
+		{
+			name:        "valid_simple",
+			datasetName: "pool/test",
+			wantErr:     false,
+		},
+		{
+			name:        "valid_with_snapshot",
+			datasetName: "pool/test@snap",
+			wantErr:     false,
+		},
+		{
+			name:        "valid_chars",
+			datasetName: "pool/a-b_c.d:e",
+			wantErr:     false,
+		},
+		{
+			name:        "invalid_semicolon",
+			datasetName: "pool/test;rm",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid_pipe",
+			datasetName: "pool/test|ls",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid_backtick",
+			datasetName: "pool/test`",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid_dollar",
+			datasetName: "$(whoami)",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewManager()
+			// We only care about validation error, ignore execution errors
+			// since we don't have a real ZFS environment
+			_, err := m.listDatasets(context.Background(), tt.datasetName)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for input %q, got nil", tt.datasetName)
+				}
+			} else {
+				// If we expect success (validation pass), we might still get "zfs list" error
+				// because command fails, but that's fine. We check if error is NOT validation error.
+				if err != nil && strings.Contains(err.Error(), "invalid character") {
+					t.Errorf("unexpected validation error for input %q: %v", tt.datasetName, err)
+				}
+			}
+		})
+	}
+}
+
+func TestListPools_Validation(t *testing.T) {
+	tests := []struct {
+		name     string
+		poolName string
+		wantErr  bool
+	}{
+		{
+			name:     "valid_simple",
+			poolName: "tank",
+			wantErr:  false,
+		},
+		{
+			name:     "invalid_semicolon",
+			poolName: "tank;rm",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewManager()
+			// We only care about validation error, ignore execution errors
+			// Use internal listPools which accepts varargs
+			_, err := m.listPools(context.Background(), tt.poolName)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for input %q, got nil", tt.poolName)
+				}
+			} else {
+				if err != nil && strings.Contains(err.Error(), "invalid character") {
+					t.Errorf("unexpected validation error for input %q: %v", tt.poolName, err)
+				}
+			}
+		})
 	}
 }

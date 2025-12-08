@@ -42,6 +42,12 @@ func (m *Manager) GetPool(ctx context.Context, name string) (*Pool, error) {
 // listPools is the internal implementation for listing pools.
 // If names are provided, only those pools are queried.
 func (m *Manager) listPools(ctx context.Context, names ...string) ([]Pool, error) {
+	for _, name := range names {
+		if err := validateName(name); err != nil {
+			return nil, err
+		}
+	}
+
 	args := []string{"status", "-p", "-j"}
 	args = append(args, names...)
 
@@ -76,6 +82,12 @@ const zfsDatasetProperties = "name,type,used,available,referenced,mountpoint,com
 // listDatasets is the internal implementation for listing datasets.
 // If names are provided, only those datasets are queried.
 func (m *Manager) listDatasets(ctx context.Context, names ...string) ([]Dataset, error) {
+	for _, name := range names {
+		if err := validateName(name); err != nil {
+			return nil, err
+		}
+	}
+
 	args := []string{"list", "-j", "-p", "-t", "filesystem,volume", "-o", zfsDatasetProperties}
 	args = append(args, names...)
 
@@ -420,4 +432,24 @@ func sortMapIter[K string, T any](m map[K]T) iter.Seq2[K, T] {
 			}
 		}
 	}
+}
+
+// validateName checks for potentially malicious characters in ZFS names (pools/datasets/snapshots).
+func validateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("name cannot be empty")
+	}
+
+	// Allowed characters: letters, numbers, -, _, :, ., /, @
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		switch r {
+		case '-', '_', ':', '.', '/', '@':
+			continue
+		}
+		return fmt.Errorf("invalid character '%c' in name", r)
+	}
+	return nil
 }
