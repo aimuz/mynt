@@ -88,3 +88,15 @@ type DatasetPropertyJSON struct {
 		Data string `json:"data"`
 	} `json:"source"`
 }
+
+// GetProp safely retrieves a property value from the dataset JSON.
+// It returns an empty string if the property is missing or nil.
+func (d *DatasetListJSON) GetProp(key string) string {
+	if d.Properties == nil {
+		return ""
+	}
+	if p, ok := d.Properties[key]; ok && p != nil {
+		return p.Value
+	}
+	return ""
+}

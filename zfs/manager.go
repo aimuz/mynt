@@ -71,11 +71,12 @@ func buildPool(name string, pj *PoolJSON) Pool {
 	return pool
 }
 
+const zfsDatasetProperties = "name,type,used,available,referenced,mountpoint,compression,encryption,dedup,quota,reservation,volsize,usedbydataset"
+
 // listDatasets is the internal implementation for listing datasets.
 // If names are provided, only those datasets are queried.
 func (m *Manager) listDatasets(ctx context.Context, names ...string) ([]Dataset, error) {
-	args := []string{"list", "-j", "-p", "-t", "filesystem,volume",
-		"-o", "name,type,used,available,referenced,mountpoint,compression,encryption,dedup,quota,reservation,volsize,usedbydataset"}
+	args := []string{"list", "-j", "-p", "-t", "filesystem,volume", "-o", zfsDatasetProperties}
 	args = append(args, names...)
 
 	out, err := m.exec.Output(ctx, "zfs", args...)
@@ -103,24 +104,14 @@ func buildDataset(dj *DatasetListJSON) Dataset {
 		dsType = DatasetVolume
 	}
 
-	getPropValue := func(key string) string {
-		if dj.Properties == nil {
-			return ""
-		}
-		if p, ok := dj.Properties[key]; ok && p != nil {
-			return p.Value
-		}
-		return ""
+	used := parseUint(dj.GetProp("used"))
+	if dsType == DatasetVolume {
+		used = parseUint(dj.GetProp("usedbydataset"))
 	}
 
-	used := parseUint(getPropValue("used"))
+	quota := parseUint(dj.GetProp("quota"))
 	if dsType == DatasetVolume {
-		used = parseUint(getPropValue("usedbydataset"))
-	}
-
-	quota := parseUint(getPropValue("quota"))
-	if dsType == DatasetVolume {
-		quota = parseUint(getPropValue("volsize"))
+		quota = parseUint(dj.GetProp("volsize"))
 	}
 
 	return Dataset{
@@ -128,14 +119,14 @@ func buildDataset(dj *DatasetListJSON) Dataset {
 		Pool:          dj.Pool,
 		Type:          dsType,
 		Used:          used,
-		Available:     parseUint(getPropValue("available")),
-		Referenced:    parseUint(getPropValue("referenced")),
-		Mountpoint:    getPropValue("mountpoint"),
-		Compression:   getPropValue("compression"),
-		Encryption:    getPropValue("encryption"),
-		Deduplication: getPropValue("dedup"),
+		Available:     parseUint(dj.GetProp("available")),
+		Referenced:    parseUint(dj.GetProp("referenced")),
+		Mountpoint:    dj.GetProp("mountpoint"),
+		Compression:   dj.GetProp("compression"),
+		Encryption:    dj.GetProp("encryption"),
+		Deduplication: dj.GetProp("dedup"),
 		Quota:         quota,
-		Reservation:   parseUint(getPropValue("reservation")),
+		Reservation:   parseUint(dj.GetProp("reservation")),
 	}
 }
 

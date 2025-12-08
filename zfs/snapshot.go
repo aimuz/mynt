@@ -47,13 +47,15 @@ func (m *Manager) CreateSnapshot(ctx context.Context, req CreateSnapshotRequest)
 	return snapshot, nil
 }
 
+const zfsSnapshotProperties = "name,used,referenced,creation"
+
 // ListSnapshots returns all snapshots for a specific dataset.
 func (m *Manager) ListSnapshots(ctx context.Context, datasetName string) ([]Snapshot, error) {
 	if datasetName == "" {
 		return nil, fmt.Errorf("dataset name is required")
 	}
 
-	args := []string{"list", "-j", "-p", "-t", "snapshot", "-o", "name,used,referenced,creation", datasetName}
+	args := []string{"list", "-j", "-p", "-t", "snapshot", "-o", zfsSnapshotProperties, datasetName}
 	out, err := m.exec.Output(ctx, "zfs", args...)
 	if err != nil {
 		return nil, fmt.Errorf("zfs list snapshots: %w", err)
@@ -82,29 +84,19 @@ func (m *Manager) ListSnapshots(ctx context.Context, datasetName string) ([]Snap
 // buildSnapshot constructs a Snapshot from JSON data.
 func buildSnapshot(sj *DatasetListJSON, datasetName string) Snapshot {
 	// Parse creation time from Unix epoch
-	createdAt := time.Now().Format(time.RFC3339)
+	var createdAt string
 	if prop := sj.Properties["creation"]; prop != nil {
 		if t, err := parseZFSTimestamp(prop.Value); err == nil {
 			createdAt = t.Format(time.RFC3339)
 		}
 	}
 
-	getPropValue := func(key string) string {
-		if sj.Properties == nil {
-			return ""
-		}
-		if p, ok := sj.Properties[key]; ok && p != nil {
-			return p.Value
-		}
-		return ""
-	}
-
 	return Snapshot{
 		Name:       sj.Name,
 		Dataset:    datasetName,
 		CreatedAt:  createdAt,
-		Used:       parseUint(getPropValue("used")),
-		Referenced: parseUint(getPropValue("referenced")),
+		Used:       parseUint(sj.GetProp("used")),
+		Referenced: parseUint(sj.GetProp("referenced")),
 		Source:     detectSnapshotSource(sj.Name),
 	}
 }
