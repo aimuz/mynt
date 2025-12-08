@@ -117,12 +117,9 @@ func buildDataset(dj *DatasetListJSON) Dataset {
 	}
 
 	used := parseUint(dj.GetProp("used"))
-	if dsType == DatasetVolume {
-		used = parseUint(dj.GetProp("usedbydataset"))
-	}
-
 	quota := parseUint(dj.GetProp("quota"))
 	if dsType == DatasetVolume {
+		used = parseUint(dj.GetProp("usedbydataset"))
 		quota = parseUint(dj.GetProp("volsize"))
 	}
 

@@ -115,7 +115,7 @@ func detectSnapshotSource(snapshotName string) string {
 		return "manual"
 	}
 
-	// Format: auto-{policyName}-{timestamp} where timestamp is YYYYMMDD-HHMMSS (16 chars)
+	// Format: auto-{policyName}-{timestamp}, where the timestamp suffix (-YYYYMMDD-HHMMSS) is 16 characters long.
 	rest := strings.TrimPrefix(snapName, "auto-")
 	if len(rest) > timestampSuffixLen {
 		return "policy:" + rest[:len(rest)-timestampSuffixLen]
