@@ -37,7 +37,7 @@ type Pool struct {
 	AltRoot         string     `json:"altroot"`
 	VDevs           []VDev     `json:"vdevs,omitempty"`
 	DiskCount       int        `json:"disk_count"`
-	RedundancyLevel string     `json:"redundancy_level"` // "可坏 1 盘", "可坏 2 盘", etc.
+	Redundancy      int        `json:"redundancy"` // How many more disks can fail (-1 = already degraded)
 	LastScrub       *string    `json:"last_scrub,omitempty"`
 	ScrubInProgress bool       `json:"scrub_in_progress"`
 }
@@ -105,6 +105,45 @@ type ScrubStatus struct {
 	DataScanned uint64  `json:"data_scanned"`
 	DataToScan  uint64  `json:"data_to_scan"`
 	ScanRate    uint64  `json:"scan_rate"` // bytes/sec
+}
+
+// VDevDetail represents detailed vdev information including disk status.
+type VDevDetail struct {
+	Name     string       `json:"name"`     // e.g., "mirror-0"
+	Type     string       `json:"type"`     // mirror, raidz, raidz2, etc.
+	Status   string       `json:"status"`   // ONLINE, DEGRADED, FAULTED
+	Children []DiskDetail `json:"children"` // disks in this vdev
+}
+
+// DiskDetail represents a disk within a vdev.
+type DiskDetail struct {
+	Name      string `json:"name"`      // e.g., "sda"
+	Path      string `json:"path"`      // e.g., "/dev/sda"
+	Status    string `json:"status"`    // ONLINE, DEGRADED, FAULTED, OFFLINE
+	Slot      string `json:"slot"`      // physical slot number if available
+	Read      uint64 `json:"read"`      // read errors
+	Write     uint64 `json:"write"`     // write errors
+	Checksum  uint64 `json:"checksum"`  // checksum errors
+	Replacing bool   `json:"replacing"` // is being replaced
+}
+
+// ResilverStatus represents the status of a resilver (rebuild) operation.
+type ResilverStatus struct {
+	InProgress    bool    `json:"in_progress"`
+	PercentDone   float64 `json:"percent_done"`
+	TimeRemaining string  `json:"time_remaining"` // e.g., "2h 30m"
+	ScannedBytes  uint64  `json:"scanned_bytes"`
+	TotalBytes    uint64  `json:"total_bytes"`
+	Rate          uint64  `json:"rate"` // bytes/sec
+}
+
+// PoolHealth represents pool health information for UI.
+type PoolHealth struct {
+	Status          PoolStatus `json:"status"`
+	CanLoseMore     int        `json:"can_lose_more"`    // how many more disks can fail
+	RiskLevel       string     `json:"risk_level"`       // "low", "medium", "high", "critical"
+	RiskDescription string     `json:"risk_description"` // human-readable risk description
+	Recommendation  string     `json:"recommendation"`   // what user should do
 }
 
 // CreatePoolRequest represents the request to create a new pool.

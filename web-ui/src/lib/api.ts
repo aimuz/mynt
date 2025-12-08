@@ -26,9 +26,51 @@ interface Pool {
     capacity: number;
     // Extended fields
     disk_count?: number;
-    redundancy_level?: string;
+    redundancy?: number; // How many more disks can fail
     last_scrub?: string;
     scrub_in_progress?: boolean;
+    vdevs?: VDev[];
+}
+
+interface VDev {
+    type: string;
+    disks: string[];
+    status: string;
+}
+
+interface VDevDetail {
+    name: string;
+    type: string;
+    status: string;
+    children: DiskDetail[];
+}
+
+interface DiskDetail {
+    name: string;
+    path: string;
+    status: string;
+    slot?: string;
+    read: number;
+    write: number;
+    checksum: number;
+    replacing: boolean;
+}
+
+interface ResilverStatus {
+    in_progress: boolean;
+    percent_done: number;
+    time_remaining: string;
+    scanned_bytes: number;
+    total_bytes: number;
+    rate: number;
+}
+
+interface PoolHealth {
+    status: string;
+    can_lose_more: number;
+    risk_level: string;
+    risk_description: string;
+    recommendation: string;
 }
 
 interface StorageSpace {
@@ -433,7 +475,28 @@ class ApiClient {
     async getScrubStatus(poolName: string): Promise<{ status: string }> {
         return this.request(`/pools/${poolName}/scrub/status`);
     }
+
+    // Pool detail operations
+    async getPool(poolName: string): Promise<Pool> {
+        return this.request(`/pools/${poolName}`);
+    }
+
+    async getPoolVDevs(poolName: string): Promise<VDevDetail[]> {
+        return this.request(`/pools/${poolName}/vdevs`);
+    }
+
+    async replaceDisk(poolName: string, oldDisk: string, newDisk: string): Promise<void> {
+        return this.request(`/pools/${poolName}/replace`, {
+            method: 'POST',
+            body: JSON.stringify({ old_disk: oldDisk, new_disk: newDisk }),
+        });
+    }
+
+    async getResilverStatus(poolName: string): Promise<ResilverStatus> {
+        return this.request(`/pools/${poolName}/resilver/status`);
+    }
 }
 
 export const api = new ApiClient();
-export type { User, Pool, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };
+export type { User, Pool, VDev, VDevDetail, DiskDetail, ResilverStatus, PoolHealth, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };
+
