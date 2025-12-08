@@ -349,7 +349,9 @@ func parseResilverFromJSON(scan *ScanStatsJSON) *ResilverStatus {
 	// Check if this is an active resilver
 	if scan.Function == "RESILVER" && scan.State == "SCANNING" {
 		status.InProgress = true
+		status.StartTime = int64(parseUint(scan.PassStart))
 		status.ScannedBytes = parseUint(scan.Examined)
+		status.IssuedBytes = parseUint(scan.Issued)
 		status.TotalBytes = parseUint(scan.ToExamine)
 		status.Rate = parseUint(scan.BytesPerScan)
 
@@ -357,9 +359,6 @@ func parseResilverFromJSON(scan *ScanStatsJSON) *ResilverStatus {
 		if status.TotalBytes > 0 {
 			status.PercentDone = float64(status.ScannedBytes) / float64(status.TotalBytes) * 100
 		}
-
-		// Time remaining would need to be calculated or parsed from additional fields
-		// ZFS 2.3 JSON doesn't directly provide "time remaining" in a simple field
 	}
 
 	return status

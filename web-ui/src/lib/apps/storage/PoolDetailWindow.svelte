@@ -7,7 +7,7 @@
         type DiskDetail,
         type ResilverStatus,
     } from "$lib/api";
-    import { formatBytes } from "$lib/utils";
+    import { formatBytes, formatDuration } from "$lib/utils";
     import {
         Database,
         HardDrive,
@@ -79,6 +79,32 @@
         } catch {
             // Ignore errors for resilver status
         }
+    }
+
+    // Calculate estimated time remaining for resilver
+    function getTimeRemaining(status: ResilverStatus): string {
+        if (!status.start_time || !status.issued_bytes) {
+            return "计算中...";
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const elapsed = now - status.start_time;
+        if (elapsed <= 0) {
+            return "计算中...";
+        }
+
+        const remaining = status.total_bytes - status.issued_bytes;
+        if (remaining <= 0) {
+            return "即将完成";
+        }
+
+        const rate = status.issued_bytes / elapsed; // bytes per second
+        if (rate <= 0) {
+            return "计算中...";
+        }
+
+        const remainingSecs = Math.floor(remaining / rate);
+        return formatDuration(remainingSecs);
     }
 
     async function handleLocateDisk(disk: DiskDetail) {
@@ -342,7 +368,7 @@
                         <span class="text-muted-foreground">预计剩余时间：</span
                         >
                         <span class="text-foreground font-medium">
-                            {resilverStatus.time_remaining || "计算中..."}
+                            {getTimeRemaining(resilverStatus)}
                         </span>
                     </div>
                     <div>

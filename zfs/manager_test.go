@@ -121,7 +121,9 @@ func TestParseResilverFromJSON(t *testing.T) {
 			input: &ScanStatsJSON{
 				Function:     "RESILVER",
 				State:        "SCANNING",
+				PassStart:    "1733648000",    // Unix timestamp
 				Examined:     "536870912000",  // 500G in bytes
+				Issued:       "536870912000",  // 500G issued
 				ToExamine:    "1099511627776", // 1T in bytes
 				BytesPerScan: "104857600",     // 100M in bytes
 			},

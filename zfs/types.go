@@ -129,12 +129,13 @@ type DiskDetail struct {
 
 // ResilverStatus represents the status of a resilver (rebuild) operation.
 type ResilverStatus struct {
-	InProgress    bool    `json:"in_progress"`
-	PercentDone   float64 `json:"percent_done"`
-	TimeRemaining string  `json:"time_remaining"` // e.g., "2h 30m"
-	ScannedBytes  uint64  `json:"scanned_bytes"`
-	TotalBytes    uint64  `json:"total_bytes"`
-	Rate          uint64  `json:"rate"` // bytes/sec
+	InProgress   bool    `json:"in_progress"`
+	PercentDone  float64 `json:"percent_done"`
+	StartTime    int64   `json:"start_time"` // Unix timestamp, for frontend to calculate remaining time
+	ScannedBytes uint64  `json:"scanned_bytes"`
+	IssuedBytes  uint64  `json:"issued_bytes"` // bytes processed (for rate calculation)
+	TotalBytes   uint64  `json:"total_bytes"`
+	Rate         uint64  `json:"rate"` // bytes/sec
 }
 
 // PoolHealth represents pool health information for UI.

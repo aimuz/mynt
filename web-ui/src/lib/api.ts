@@ -59,8 +59,9 @@ interface DiskDetail {
 interface ResilverStatus {
     in_progress: boolean;
     percent_done: number;
-    time_remaining: string;
+    start_time: number;    // Unix timestamp for frontend to calculate remaining time
     scanned_bytes: number;
+    issued_bytes: number;  // bytes processed (for rate calculation)
     total_bytes: number;
     rate: number;
 }
