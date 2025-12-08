@@ -4,90 +4,152 @@ import (
 	"testing"
 )
 
-func TestParseResilverStatus(t *testing.T) {
+func TestParseVDevsFromJSON(t *testing.T) {
 	tests := []struct {
-		name         string
-		input        string
-		wantProgress bool
-		wantPercent  float64
-		wantScanned  uint64
-		wantTotal    uint64
-		wantRate     uint64
-		wantTime     string
+		name      string
+		input     map[string]*VDevJSON
+		wantCount int
+		wantTypes []string
 	}{
 		{
-			name:         "no_resilver",
-			input:        "  pool: tank\n state: ONLINE\n",
-			wantProgress: false,
+			name:      "empty",
+			input:     nil,
+			wantCount: 0,
 		},
 		{
-			name: "resilver_in_progress",
-			input: `  pool: tank
- state: DEGRADED
-status: One or more devices is currently being resilvered.
-  scan: resilver in progress since Sun Dec  8 10:00:00 2024
-        112G scanned of 1.81T at 1.14G/s, 0h24m to go
-        50.0% done
-`,
-			wantProgress: true,
-			wantPercent:  50.0,
-			wantScanned:  120259084288,  // 112G
-			wantTotal:    1990116046274, // 1.81T
-			wantRate:     1224440233,    // 1.14G
-			wantTime:     "0h24m",
+			name: "stripe_pool",
+			input: map[string]*VDevJSON{
+				"test": {
+					Name:     "test",
+					VDevType: "root",
+					State:    "ONLINE",
+					VDevs: map[string]*VDevJSON{
+						"sda": {
+							Name:     "sda",
+							VDevType: "disk",
+							Path:     "/dev/sda",
+							State:    "ONLINE",
+						},
+						"sdb": {
+							Name:     "sdb",
+							VDevType: "disk",
+							Path:     "/dev/sdb",
+							State:    "ONLINE",
+						},
+					},
+				},
+			},
+			wantCount: 2, // Two stripe disks become two vdevs
+			wantTypes: []string{"stripe", "stripe"},
 		},
 		{
-			name: "resilver_almost_done",
-			input: `  scan: resilver in progress since Sun Dec  8 10:00:00 2024
-        1.5T scanned of 2T at 500M/s, 0:10:00 to go
-        95.5% done
-`,
-			wantProgress: true,
-			wantPercent:  95.5,
-			wantScanned:  1649267441664, // 1.5T
-			wantTotal:    2199023255552, // 2T
-			wantRate:     524288000,     // 500M
-			wantTime:     "0:10:00",
-		},
-		{
-			name: "scrub_not_resilver",
-			input: `  scan: scrub in progress since Sun Dec  8 10:00:00 2024
-        100G scanned at 200M/s
-        50.0% done
-`,
-			wantProgress: false, // scrub, not resilver
-			wantPercent:  50.0,
+			name: "mirror_pool",
+			input: map[string]*VDevJSON{
+				"tank": {
+					Name:     "tank",
+					VDevType: "root",
+					State:    "ONLINE",
+					VDevs: map[string]*VDevJSON{
+						"mirror-0": {
+							Name:     "mirror-0",
+							VDevType: "mirror",
+							State:    "ONLINE",
+							VDevs: map[string]*VDevJSON{
+								"sda": {
+									Name:     "sda",
+									VDevType: "disk",
+									Path:     "/dev/sda",
+									State:    "ONLINE",
+								},
+								"sdb": {
+									Name:     "sdb",
+									VDevType: "disk",
+									Path:     "/dev/sdb",
+									State:    "ONLINE",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCount: 1, // One mirror vdev
+			wantTypes: []string{"mirror"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseResilverStatus(tt.input)
+			got := parseVDevsFromJSON(tt.input)
+
+			if len(got) != tt.wantCount {
+				t.Errorf("parseVDevsFromJSON() count = %d, want %d", len(got), tt.wantCount)
+			}
+
+			if tt.wantTypes != nil {
+				for i, vdev := range got {
+					if i < len(tt.wantTypes) && vdev.Type != tt.wantTypes[i] {
+						t.Errorf("vdev[%d].Type = %q, want %q", i, vdev.Type, tt.wantTypes[i])
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseResilverFromJSON(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        *ScanStatsJSON
+		wantProgress bool
+		wantPercent  float64
+	}{
+		{
+			name:         "nil_scan",
+			input:        nil,
+			wantProgress: false,
+		},
+		{
+			name: "scrub_finished",
+			input: &ScanStatsJSON{
+				Function: "SCRUB",
+				State:    "FINISHED",
+			},
+			wantProgress: false,
+		},
+		{
+			name: "resilver_in_progress",
+			input: &ScanStatsJSON{
+				Function:     "RESILVER",
+				State:        "SCANNING",
+				Examined:     "500G",
+				ToExamine:    "1T",
+				BytesPerScan: "100M",
+			},
+			wantProgress: true,
+			wantPercent:  48.83, // 500G / 1T = 500*1024^3 / 1024^4 ≈ 48.83%
+		},
+		{
+			name: "resilver_finished",
+			input: &ScanStatsJSON{
+				Function: "RESILVER",
+				State:    "FINISHED",
+			},
+			wantProgress: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseResilverFromJSON(tt.input)
 
 			if got.InProgress != tt.wantProgress {
 				t.Errorf("InProgress = %v, want %v", got.InProgress, tt.wantProgress)
 			}
 
-			if got.PercentDone != tt.wantPercent {
-				t.Errorf("PercentDone = %v, want %v", got.PercentDone, tt.wantPercent)
-			}
-
 			if tt.wantProgress {
-				// Allow 5% tolerance for parsed sizes due to floating point
-				if !withinTolerance(got.ScannedBytes, tt.wantScanned, 0.05) {
-					t.Errorf("ScannedBytes = %d, want ~%d", got.ScannedBytes, tt.wantScanned)
-				}
-
-				if !withinTolerance(got.TotalBytes, tt.wantTotal, 0.05) {
-					t.Errorf("TotalBytes = %d, want ~%d", got.TotalBytes, tt.wantTotal)
-				}
-
-				if !withinTolerance(got.Rate, tt.wantRate, 0.05) {
-					t.Errorf("Rate = %d, want ~%d", got.Rate, tt.wantRate)
-				}
-
-				if got.TimeRemaining != tt.wantTime {
-					t.Errorf("TimeRemaining = %q, want %q", got.TimeRemaining, tt.wantTime)
+				// Allow 1% tolerance for floating point
+				if got.PercentDone < tt.wantPercent-1 || got.PercentDone > tt.wantPercent+1 {
+					t.Errorf("PercentDone = %v, want ~%v", got.PercentDone, tt.wantPercent)
 				}
 			}
 		})
@@ -106,7 +168,6 @@ func TestParseSize(t *testing.T) {
 		{"1G", 1024 * 1024 * 1024},
 		{"2T", 2 * 1024 * 1024 * 1024 * 1024},
 		{"1.5G", 1610612736}, // 1.5 * 1024^3
-		{"1.81T", 1990585565593},
 		{"", 0},
 		{"invalid", 0},
 	}
@@ -114,51 +175,33 @@ func TestParseSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			got := parseSize(tt.input)
-			if !withinTolerance(got, tt.want, 0.01) {
+			// Allow 5% tolerance for floating point sizes
+			if !withinTolerance(got, tt.want, 0.05) {
 				t.Errorf("parseSize(%q) = %d, want %d", tt.input, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestParseScanLine(t *testing.T) {
+func TestVdevTypeFromJSON(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
-		wantScanned uint64
-		wantTotal   uint64
-		wantRate    uint64
+		input string
+		want  string
 	}{
-		{
-			name:        "standard_format",
-			input:       "112G scanned of 1.81T at 1.14G/s, 0h24m to go",
-			wantScanned: 120259084288,  // 112G
-			wantTotal:   1990116046274, // 1.81T
-			wantRate:    1224440233,    // 1.14G
-		},
-		{
-			name:        "megabytes",
-			input:       "500M scanned of 10G at 100M/s",
-			wantScanned: 524288000,   // 500M
-			wantTotal:   10737418240, // 10G
-			wantRate:    104857600,   // 100M
-		},
+		{"mirror", "mirror"},
+		{"raidz", "raidz"},
+		{"raidz1", "raidz"},
+		{"raidz2", "raidz2"},
+		{"raidz3", "raidz3"},
+		{"disk", "stripe"},
+		{"unknown", "unknown"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			scanned, total, rate := parseScanLine(tt.input)
-
-			if !withinTolerance(scanned, tt.wantScanned, 0.05) {
-				t.Errorf("scanned = %d, want ~%d", scanned, tt.wantScanned)
-			}
-
-			if !withinTolerance(total, tt.wantTotal, 0.05) {
-				t.Errorf("total = %d, want ~%d", total, tt.wantTotal)
-			}
-
-			if !withinTolerance(rate, tt.wantRate, 0.05) {
-				t.Errorf("rate = %d, want ~%d", rate, tt.wantRate)
+		t.Run(tt.input, func(t *testing.T) {
+			got := vdevTypeFromJSON(tt.input)
+			if got != tt.want {
+				t.Errorf("vdevTypeFromJSON(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

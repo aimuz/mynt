@@ -2,8 +2,8 @@ package zfs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -162,14 +162,24 @@ func (m *Manager) GetPool(ctx context.Context, name string) (*Pool, error) {
 	return &pool, nil
 }
 
-// GetPoolVDevs parses the zpool status output to get vdev structure.
+// GetPoolVDevs gets vdev structure using `zpool status -j` JSON output.
 func (m *Manager) GetPoolVDevs(ctx context.Context, poolName string) ([]VDevDetail, error) {
-	out, err := m.exec.Output(ctx, "zpool", "status", poolName)
+	out, err := m.exec.Output(ctx, "zpool", "status", "-j", poolName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool status: %w", err)
 	}
 
-	return parsePoolStatus(string(out), poolName)
+	var status ZpoolStatusJSON
+	if err := json.Unmarshal(out, &status); err != nil {
+		return nil, fmt.Errorf("failed to parse pool status JSON: %w", err)
+	}
+
+	pool, ok := status.Pools[poolName]
+	if !ok {
+		return nil, fmt.Errorf("pool %s not found in status output", poolName)
+	}
+
+	return parseVDevsFromJSON(pool.VDevs), nil
 }
 
 // ReplaceDisk replaces a disk in a pool.
@@ -181,13 +191,24 @@ func (m *Manager) ReplaceDisk(ctx context.Context, poolName, oldDisk, newDisk st
 	return nil
 }
 
-// GetResilverStatus gets the resilver (rebuild) status of a pool.
+// GetResilverStatus gets the resilver (rebuild) status of a pool using JSON output.
 func (m *Manager) GetResilverStatus(ctx context.Context, poolName string) (*ResilverStatus, error) {
-	out, err := m.exec.Output(ctx, "zpool", "status", poolName)
+	out, err := m.exec.Output(ctx, "zpool", "status", "-j", poolName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool status: %w", err)
 	}
-	return parseResilverStatus(string(out)), nil
+
+	var status ZpoolStatusJSON
+	if err := json.Unmarshal(out, &status); err != nil {
+		return nil, fmt.Errorf("failed to parse pool status JSON: %w", err)
+	}
+
+	pool, ok := status.Pools[poolName]
+	if !ok {
+		return nil, fmt.Errorf("pool %s not found in status output", poolName)
+	}
+
+	return parseResilverFromJSON(pool.ScanStats), nil
 }
 
 // calculateRedundancy determines how many more disks can fail.
@@ -243,186 +264,111 @@ func calculateRedundancy(vdevs []VDevDetail) int {
 	return minRedundancy
 }
 
-// parsePoolStatus parses zpool status output to extract vdev structure.
-func parsePoolStatus(output, poolName string) ([]VDevDetail, error) {
-	lines := strings.Split(output, "\n")
+// parseVDevsFromJSON converts JSON vdevs to VDevDetail slice.
+// It walks the JSON tree recursively to extract vdev structure.
+func parseVDevsFromJSON(jsonVDevs map[string]*VDevJSON) []VDevDetail {
 	var vdevs []VDevDetail
-	var currentVDev *VDevDetail
-	inConfig := false
 
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Look for the config section
-		if strings.HasPrefix(trimmed, "config:") {
-			inConfig = true
-			continue
-		}
-
-		if !inConfig {
-			continue
-		}
-
-		// Skip empty lines and header
-		if trimmed == "" || strings.HasPrefix(trimmed, "NAME") {
-			continue
-		}
-
-		// Stop at errors section
-		if strings.HasPrefix(trimmed, "errors:") {
-			break
-		}
-
-		// Parse the line
-		fields := strings.Fields(trimmed)
-		if len(fields) < 2 {
-			continue
-		}
-
-		name := fields[0]
-		status := fields[1]
-
-		// Skip the pool name line
-		if name == poolName {
-			continue
-		}
-
-		// Check if this is a vdev type (mirror, raidz, etc.)
-		if strings.HasPrefix(name, "mirror") ||
-			strings.HasPrefix(name, "raidz") ||
-			strings.HasPrefix(name, "spare") ||
-			strings.HasPrefix(name, "log") ||
-			strings.HasPrefix(name, "cache") {
-
-			// Determine vdev type
-			vdevType := "stripe"
-			if strings.HasPrefix(name, "mirror") {
-				vdevType = "mirror"
-			} else if strings.HasPrefix(name, "raidz3") {
-				vdevType = "raidz3"
-			} else if strings.HasPrefix(name, "raidz2") {
-				vdevType = "raidz2"
-			} else if strings.HasPrefix(name, "raidz") {
-				vdevType = "raidz"
+	for _, rootVDev := range jsonVDevs {
+		// Skip the root vdev itself, process its children
+		if rootVDev.VDevType == "root" {
+			for _, childVDev := range rootVDev.VDevs {
+				vdev := vdevFromJSON(childVDev)
+				vdevs = append(vdevs, vdev)
 			}
-
-			currentVDev = &VDevDetail{
-				Name:     name,
-				Type:     vdevType,
-				Status:   status,
-				Children: []DiskDetail{},
-			}
-			vdevs = append(vdevs, *currentVDev)
-			continue
-		}
-
-		// This is a disk
-		// Note: name could be just device name (e.g. "sda") or an absolute path (e.g. "/dev/disk/by-id/...")
-		path := name
-		if !strings.HasPrefix(name, "/") {
-			path = filepath.Join("/dev", name)
-		}
-		disk := DiskDetail{
-			Name:      name,
-			Path:      path,
-			Status:    status,
-			Replacing: strings.Contains(line, "replacing"),
-		}
-
-		// Parse error counts if present (fields: NAME STATE READ WRITE CKSUM)
-		if len(fields) >= 5 {
-			disk.Read, _ = strconv.ParseUint(fields[2], 10, 64)
-			disk.Write, _ = strconv.ParseUint(fields[3], 10, 64)
-			disk.Checksum, _ = strconv.ParseUint(fields[4], 10, 64)
-		}
-
-		if currentVDev != nil && len(vdevs) > 0 {
-			vdevs[len(vdevs)-1].Children = append(vdevs[len(vdevs)-1].Children, disk)
-		} else {
-			// Single disk pool (stripe)
-			vdevs = append(vdevs, VDevDetail{
-				Name:     "stripe",
-				Type:     "stripe",
-				Status:   status,
-				Children: []DiskDetail{disk},
-			})
 		}
 	}
 
-	return vdevs, nil
+	return vdevs
 }
 
-// parseResilverStatus parses zpool status output to extract resilver progress.
-// TODO(zfs2.3): ZFS 2.3+ supports `zpool status -j` JSON output, which would
-// simplify parsing significantly. Consider switching when ZFS 2.3 is widely adopted.
-func parseResilverStatus(output string) *ResilverStatus {
+// vdevFromJSON converts a single VDevJSON to VDevDetail.
+func vdevFromJSON(v *VDevJSON) VDevDetail {
+	vdev := VDevDetail{
+		Name:   v.Name,
+		Type:   vdevTypeFromJSON(v.VDevType),
+		Status: v.State,
+	}
+
+	// If this vdev has children, they are the disks
+	if len(v.VDevs) > 0 {
+		for _, child := range v.VDevs {
+			disk := diskFromJSON(child)
+			vdev.Children = append(vdev.Children, disk)
+		}
+	} else {
+		// This is a single disk (stripe pool)
+		disk := diskFromJSON(v)
+		vdev.Children = []DiskDetail{disk}
+	}
+
+	return vdev
+}
+
+// diskFromJSON converts a VDevJSON to DiskDetail.
+func diskFromJSON(v *VDevJSON) DiskDetail {
+	return DiskDetail{
+		Name:      v.Name,
+		Path:      v.Path,
+		Status:    v.State,
+		Read:      parseUint(v.ReadErrors),
+		Write:     parseUint(v.WriteErrors),
+		Checksum:  parseUint(v.ChecksumErrors),
+		Replacing: false, // TODO: detect replacing state from JSON
+	}
+}
+
+// vdevTypeFromJSON normalizes vdev_type from JSON to our internal type.
+func vdevTypeFromJSON(jsonType string) string {
+	switch jsonType {
+	case "mirror":
+		return "mirror"
+	case "raidz1", "raidz":
+		return "raidz"
+	case "raidz2":
+		return "raidz2"
+	case "raidz3":
+		return "raidz3"
+	case "disk":
+		return "stripe"
+	default:
+		return jsonType
+	}
+}
+
+// parseResilverFromJSON converts ScanStatsJSON to ResilverStatus.
+func parseResilverFromJSON(scan *ScanStatsJSON) *ResilverStatus {
 	status := &ResilverStatus{
 		InProgress: false,
 	}
 
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
+	if scan == nil {
+		return status
+	}
 
-		// Look for resilver in progress
-		if strings.Contains(line, "resilver in progress") {
-			status.InProgress = true
-			continue
+	// Check if this is an active resilver
+	if scan.Function == "RESILVER" && scan.State == "SCANNING" {
+		status.InProgress = true
+		status.ScannedBytes = parseSize(scan.Examined)
+		status.TotalBytes = parseSize(scan.ToExamine)
+		status.Rate = parseSize(scan.BytesPerScan)
+
+		// Calculate percent done
+		if status.TotalBytes > 0 {
+			status.PercentDone = float64(status.ScannedBytes) / float64(status.TotalBytes) * 100
 		}
 
-		// Parse scan line: "scanned 112G of 1.81T at 1.14G/s, 0h24m to go"
-		// or "scanned 50.0G resilvered 25.0G at 100M/s, 0:30:00 to go"
-		if strings.Contains(line, "scanned") && strings.Contains(line, "at") {
-			status.ScannedBytes, status.TotalBytes, status.Rate = parseScanLine(line)
-		}
-
-		// Parse progress line: "... 50.0% done, ..."
-		if strings.Contains(line, "% done") {
-			for _, field := range strings.Fields(line) {
-				if strings.HasSuffix(field, "%") {
-					pctStr := strings.TrimSuffix(field, "%")
-					if pct, err := strconv.ParseFloat(pctStr, 64); err == nil {
-						status.PercentDone = pct
-					}
-					break
-				}
-			}
-		}
-
-		// Parse time remaining: "... 1h30m to go" or "... 0:30:00 to go"
-		if idx := strings.Index(line, " to go"); idx > 0 {
-			// Find the time part before "to go"
-			parts := strings.Fields(line[:idx])
-			if len(parts) > 0 {
-				status.TimeRemaining = parts[len(parts)-1]
-			}
-		}
+		// Time remaining would need to be calculated or parsed from additional fields
+		// ZFS 2.3 JSON doesn't directly provide "time remaining" in a simple field
 	}
 
 	return status
 }
 
-// parseScanLine parses a scan line like "112G scanned of 1.81T at 1.14G/s"
-// Returns scanned bytes, total bytes, and rate in bytes/sec.
-func parseScanLine(line string) (scanned, total, rate uint64) {
-	fields := strings.Fields(line)
-	for i, f := range fields {
-		// Look for "XXX scanned" - size comes BEFORE keyword
-		if f == "scanned" && i > 0 {
-			scanned = parseSize(fields[i-1])
-		}
-		// Look for "of XXX"
-		if f == "of" && i+1 < len(fields) {
-			total = parseSize(fields[i+1])
-		}
-		// Look for "at XXX/s" or "at XXX/s,"
-		if f == "at" && i+1 < len(fields) {
-			rateStr := fields[i+1]
-			rateStr = strings.TrimSuffix(rateStr, ",")
-			rateStr = strings.TrimSuffix(rateStr, "/s")
-			rate = parseSize(rateStr)
-		}
-	}
-	return
+// parseUint safely parses a string to uint64, returning 0 on error.
+func parseUint(s string) uint64 {
+	v, _ := strconv.ParseUint(s, 10, 64)
+	return v
 }
 
 // parseSize parses size strings like "112G", "1.81T", "100M" to bytes.
