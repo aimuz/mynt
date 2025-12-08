@@ -66,16 +66,6 @@
 
     const apps: DesktopApp[] = [
         {
-            id: "dashboard",
-            name: "Dashboard",
-            icon: Activity,
-            color: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            onClick: async () => {
-                const module = await import("$lib/apps/DashboardApp.svelte");
-                openWindow("dashboard", "Dashboard", Activity, module.default);
-            },
-        },
-        {
             id: "storage",
             name: "Storage",
             icon: Database,
@@ -106,13 +96,6 @@
                     module.default,
                 );
             },
-        },
-        {
-            id: "disks",
-            name: "Disks",
-            icon: HardDrive,
-            color: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-            onClick: () => openWindow("disks", "Disk Manager", HardDrive, null),
         },
         {
             id: "users",
@@ -164,8 +147,12 @@
         // Calculate position based on existing windows to cascade them
         const offset = activeWindows.length * 30;
 
-        const x = Math.max(0, (window.innerWidth - DEFAULT_WINDOW_WIDTH) / 2) + offset;
-        const y = Math.max(0, (window.innerHeight - DEFAULT_WINDOW_HEIGHT) / 2) + offset;
+        const x =
+            Math.max(0, (window.innerWidth - DEFAULT_WINDOW_WIDTH) / 2) +
+            offset;
+        const y =
+            Math.max(0, (window.innerHeight - DEFAULT_WINDOW_HEIGHT) / 2) +
+            offset;
 
         // Check if component is a factory function
         if (typeof component === "function" && component.length === 0) {
@@ -422,5 +409,4 @@
             </button>
         </div>
     {/if}
-
 </div>
