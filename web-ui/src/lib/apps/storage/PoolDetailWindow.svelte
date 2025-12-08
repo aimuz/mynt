@@ -73,13 +73,7 @@
 
     // Calculate estimated time remaining for resilver
     function getTimeRemaining(status: ResilverStatus): string {
-        if (!status.start_time || !status.issued_bytes) {
-            return "计算中...";
-        }
-
-        const now = Math.floor(Date.now() / 1000);
-        const elapsed = now - status.start_time;
-        if (elapsed <= 0) {
+        if (status.rate <= 0) {
             return "计算中...";
         }
 
@@ -88,12 +82,7 @@
             return "即将完成";
         }
 
-        const rate = status.issued_bytes / elapsed; // bytes per second
-        if (rate <= 0) {
-            return "计算中...";
-        }
-
-        const remainingSecs = Math.floor(remaining / rate);
+        const remainingSecs = Math.floor(remaining / status.rate);
         return formatDuration(remainingSecs);
     }
 
