@@ -19,16 +19,62 @@ interface User {
 
 interface Pool {
     name: string;
+    guid?: string;
     health: string;
     size: number;
     allocated: number;
     free: number;
-    capacity: number;
-    // Extended fields
+    frag?: number;
     disk_count?: number;
-    redundancy_level?: string;
-    last_scrub?: string;
-    scrub_in_progress?: boolean;
+    redundancy?: number;
+    vdevs?: VDevDetail[];
+    scrub_status?: ScrubStatus;
+    resilver_status?: ResilverStatus;
+}
+
+interface ScrubStatus {
+    in_progress: boolean;
+    end_time?: string;
+    errors: number;
+    data_scanned: number;
+    data_to_scan: number;
+    scan_rate: number;
+}
+
+interface VDevDetail {
+    name: string;
+    type: string;
+    status: string;
+    children: DiskDetail[];
+}
+
+interface DiskDetail {
+    name: string;
+    path: string;
+    status: string;
+    slot?: string;
+    read: number;
+    write: number;
+    checksum: number;
+    replacing: boolean;
+}
+
+interface ResilverStatus {
+    in_progress: boolean;
+    percent_done: number;
+    start_time: number;    // Unix timestamp for frontend to calculate remaining time
+    scanned_bytes: number;
+    issued_bytes: number;  // bytes processed (for rate calculation)
+    total_bytes: number;
+    rate: number;
+}
+
+interface PoolHealth {
+    status: string;
+    can_lose_more: number;
+    risk_level: string;
+    risk_description: string;
+    recommendation: string;
 }
 
 interface StorageSpace {
@@ -430,10 +476,19 @@ class ApiClient {
         });
     }
 
-    async getScrubStatus(poolName: string): Promise<{ status: string }> {
-        return this.request(`/pools/${poolName}/scrub/status`);
+    // Pool detail operations
+    async getPool(poolName: string): Promise<Pool> {
+        return this.request(`/pools/${poolName}`);
+    }
+
+    async replaceDisk(poolName: string, oldDisk: string, newDisk: string): Promise<void> {
+        return this.request(`/pools/${poolName}/replace`, {
+            method: 'POST',
+            body: JSON.stringify({ old_disk: oldDisk, new_disk: newDisk }),
+        });
     }
 }
 
 export const api = new ApiClient();
-export type { User, Pool, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };
+export type { User, Pool, VDevDetail, DiskDetail, ResilverStatus, ScrubStatus, PoolHealth, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };
+

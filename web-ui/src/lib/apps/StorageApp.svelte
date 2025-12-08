@@ -17,6 +17,7 @@
     import StorageSpaceListView from "$lib/apps/storage/StorageSpaceListView.svelte";
     import DiskListView from "$lib/apps/storage/DiskListView.svelte";
     import TaskLogView from "$lib/apps/storage/TaskLogView.svelte";
+    import PoolDetailWindow from "$lib/apps/storage/PoolDetailWindow.svelte";
     import EmptyState from "$lib/components/EmptyState.svelte";
 
     // View state
@@ -66,6 +67,18 @@
             component: CreatePoolWindow,
             props: { onRefreshStorage: loadData },
         }));
+    }
+
+    function handleOpenPoolDetail(pool: Pool) {
+        desktop.openWindow(
+            `pool-detail-${pool.name}`,
+            `存储池详情 - ${pool.name}`,
+            Database,
+            () => ({
+                component: PoolDetailWindow,
+                props: { poolName: pool.name, onRefresh: loadData },
+            }),
+        );
     }
 
     function getHealthBadgeColor(health: string): string {
@@ -146,8 +159,9 @@
                     {:else}
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {#each pools as pool, i}
-                                <div
-                                    class="glass-card rounded-xl p-6 fade-in hover:bg-white/5 transition-all cursor-pointer"
+                                <button
+                                    onclick={() => handleOpenPoolDetail(pool)}
+                                    class="glass-card rounded-xl p-6 fade-in hover:bg-white/5 transition-all cursor-pointer text-left w-full"
                                     style="animation-delay: {i * 50}ms;"
                                 >
                                     <div
@@ -245,7 +259,7 @@
                                             </p>
                                         </div>
                                     </div>
-                                </div>
+                                </button>
                             {/each}
                         </div>
                     {/if}

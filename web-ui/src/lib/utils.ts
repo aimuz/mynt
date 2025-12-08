@@ -26,3 +26,20 @@ export function formatDate(date: string | Date): string {
 export function cn(...classes: (string | boolean | undefined | null)[]): string {
     return classes.filter(Boolean).join(' ');
 }
+
+// Format seconds as human-readable duration (e.g., "1小时30分", "45分20秒").
+export function formatDuration(seconds: number): string {
+    if (seconds < 0) return '';
+
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+        return `${hours}小时${mins}分`;
+    }
+    if (mins > 0) {
+        return `${mins}分${secs}秒`;
+    }
+    return `${secs}秒`;
+}

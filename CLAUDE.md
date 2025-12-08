@@ -276,12 +276,13 @@ To explore available endpoints, check the `routes()` method in `server.go`, whic
 
 ## Known Limitations & Gotchas
 
-1. **ZFS requires root**: Production deployment needs root or appropriate capabilities
-2. **SQLite in-memory**: Tests use in-memory databases
-3. **API null responses**: Always check for `null` in array responses - API may return null instead of empty arrays
-4. **Svelte 5 boundaries**: Only catch synchronous errors; use try-catch for async operations
-5. **Static build**: Web UI is embedded in binary; rebuild Go binary after UI changes
-6. **Bun only**: Always use `bun`, never `npm` for frontend operations
+1. **ZFS 2.3+ required**: This project requires OpenZFS 2.3 or later for JSON output support (`zpool status -j`)
+2. **ZFS requires root**: Production deployment needs root or appropriate capabilities
+3. **SQLite in-memory**: Tests use in-memory databases
+4. **API null responses**: Always check for `null` in array responses - API may return null instead of empty arrays
+5. **Svelte 5 boundaries**: Only catch synchronous errors; use try-catch for async operations
+6. **Static build**: Web UI is embedded in binary; rebuild Go binary after UI changes
+7. **Bun only**: Always use `bun`, never `npm` for frontend operations
 
 ## Debugging Tips
 
