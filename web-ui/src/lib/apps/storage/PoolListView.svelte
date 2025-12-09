@@ -112,6 +112,10 @@
         {:else}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {#each pools as pool, i}
+                    {@const usagePercent =
+                        pool.size > 0
+                            ? (pool.allocated / pool.size) * 100
+                            : 0}
                     <button
                         onclick={() => handleOpenPoolDetail(pool)}
                         class="glass-card rounded-xl p-6 fade-in hover:bg-white/5 transition-all cursor-pointer text-left w-full"
@@ -151,22 +155,12 @@
                                 class="flex justify-between text-xs text-muted-foreground mb-1"
                             >
                                 <span>容量</span>
-                                <span
-                                    >{(
-                                        (pool.allocated /
-                                            pool.size) *
-                                        100
-                                    ).toFixed(1)}%</span
-                                >
+                                <span>{usagePercent.toFixed(1)}%</span>
                             </div>
-                            <div
-                                class="w-full bg-muted rounded-full h-2"
-                            >
+                            <div class="w-full bg-muted rounded-full h-2">
                                 <div
                                     class="bg-linear-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all"
-                                    style="width: {(pool.allocated /
-                                        pool.size) *
-                                        100}%"
+                                    style="width: {usagePercent}%"
                                 ></div>
                             </div>
                         </div>
