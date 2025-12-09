@@ -15,10 +15,11 @@ import (
 
 // SystemStats represents the system status.
 type SystemStats struct {
-	CPU    CPUStats    `json:"cpu"`
-	Memory MemoryStats `json:"memory"`
-	Swap   SwapStats   `json:"swap"`
-	Uptime uint64      `json:"uptime"`
+	CPU     CPUStats      `json:"cpu"`
+	Memory  MemoryStats   `json:"memory"`
+	Swap    SwapStats     `json:"swap"`
+	Network *NetworkStats `json:"network,omitempty"`
+	Uptime  uint64        `json:"uptime"`
 }
 
 // CPUStats holds CPU usage information.

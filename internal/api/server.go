@@ -875,14 +875,7 @@ func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
 
 	netStats, err := s.monitor.GetNetworkStats(r.Context())
 	if err == nil {
-		// Just merge it into the response dynamically
-		respondJSON(w, http.StatusOK, map[string]interface{}{
-			"cpu":     stats.CPU,
-			"memory":  stats.Memory,
-			"swap":    stats.Swap,
-			"network": netStats,
-		})
-		return
+		stats.Network = netStats
 	}
 
 	respondJSON(w, http.StatusOK, stats)
