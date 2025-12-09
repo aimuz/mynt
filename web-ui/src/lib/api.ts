@@ -512,6 +512,7 @@ interface SystemStats {
     memory: MemStats;
     network: NetStats[];
     disk_io: DiskIOStats[];
+    uptime: number; // System uptime in seconds
 }
 
 interface CPUStats {

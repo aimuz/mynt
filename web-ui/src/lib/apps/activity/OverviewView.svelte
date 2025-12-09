@@ -1,7 +1,13 @@
 <script lang="ts">
     import { formatBytes } from "$lib/utils";
     import type { SystemStats } from "$lib/api";
-    import { Cpu, MemoryStick, Network, HardDrive } from "@lucide/svelte";
+    import {
+        Cpu,
+        MemoryStick,
+        Network,
+        HardDrive,
+        Clock,
+    } from "@lucide/svelte";
     import Sparkline from "$lib/components/Sparkline.svelte";
 
     interface Props {
@@ -24,12 +30,35 @@
         if (bytesPerSec === 0) return "0 B/s";
         return formatBytes(bytesPerSec) + "/s";
     }
+
+    function formatUptime(seconds: number): string {
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+
+        const parts = [];
+        if (days > 0) parts.push(`${days} 天`);
+        if (hours > 0) parts.push(`${hours} 小时`);
+        if (minutes > 0 || parts.length === 0) parts.push(`${minutes} 分钟`);
+
+        return parts.join(" ");
+    }
 </script>
 
 <div class="p-6 overflow-auto flex-1">
-    <div class="mb-6">
-        <h2 class="text-2xl font-bold text-foreground">系统概览</h2>
-        <p class="text-sm text-muted-foreground mt-1">实时系统资源监控</p>
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-foreground">系统概览</h2>
+            <p class="text-sm text-muted-foreground mt-1">实时系统资源监控</p>
+        </div>
+        {#if stats.uptime}
+            <div class="flex items-center gap-2 text-muted-foreground">
+                <Clock class="w-4 h-4" />
+                <span class="text-sm"
+                    >运行时间: {formatUptime(stats.uptime)}</span
+                >
+            </div>
+        {/if}
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

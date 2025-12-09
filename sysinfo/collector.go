@@ -9,6 +9,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
@@ -91,6 +92,11 @@ func (c *Collector) Collect() (*Stats, error) {
 	if swap, err := mem.SwapMemory(); err == nil {
 		stats.Memory.SwapTotal = swap.Total
 		stats.Memory.SwapUsed = swap.Used
+	}
+
+	// Uptime
+	if uptime, err := host.Uptime(); err == nil {
+		stats.Uptime = uptime
 	}
 
 	// Network stats

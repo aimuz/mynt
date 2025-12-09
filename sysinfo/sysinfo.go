@@ -7,6 +7,7 @@ type Stats struct {
 	Memory  MemStats   `json:"memory"`
 	Network []NetStats `json:"network"`
 	DiskIO  []DiskIO   `json:"disk_io"`
+	Uptime  uint64     `json:"uptime"` // System uptime in seconds
 }
 
 // CPUStats represents CPU usage statistics.
