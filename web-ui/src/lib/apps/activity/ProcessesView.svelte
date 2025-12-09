@@ -11,34 +11,54 @@
     let { processes, onKill }: Props = $props();
 
     let searchQuery = $state("");
+    let debouncedQuery = $state("");
+    let timer: any;
+
+    // Debounce search input
+    function handleSearchInput(e: Event) {
+        const val = (e.target as HTMLInputElement).value;
+        searchQuery = val;
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            debouncedQuery = val;
+        }, 300);
+    }
     let sortBy = $state<keyof SysProcess>("cpu_percent");
     let sortDesc = $state(true);
     let confirmKill = $state<number | null>(null);
 
-    let filteredProcesses = $derived(() => {
-        let result = [...processes];
+    let filteredProcesses = $derived.by(() => {
+        const query = debouncedQuery.trim();
+        let result: SysProcess[];
 
-        // Filter
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            result = result.filter(
-                (p) =>
-                    p.name.toLowerCase().includes(query) ||
-                    p.command.toLowerCase().includes(query) ||
-                    p.user.toLowerCase().includes(query),
+        if (query) {
+            // Use RegExp for faster case-insensitive matching without repeated .toLowerCase()
+            const re = new RegExp(
+                query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+                "i",
             );
+            result = processes.filter(
+                (p) => re.test(p.name) || re.test(p.command) || re.test(p.user),
+            );
+        } else {
+            result = [...processes];
         }
 
         // Sort
         result.sort((a, b) => {
             const aVal = a[sortBy];
             const bVal = b[sortBy];
+
             if (typeof aVal === "number" && typeof bVal === "number") {
                 return sortDesc ? bVal - aVal : aVal - bVal;
             }
-            return sortDesc
-                ? String(bVal).localeCompare(String(aVal))
-                : String(aVal).localeCompare(String(bVal));
+
+            // Fast string comparison
+            const aStr = aVal as string;
+            const bStr = bVal as string;
+            if (aStr === bStr) return 0;
+            const cmp = aStr > bStr ? 1 : -1;
+            return sortDesc ? -cmp : cmp;
         });
 
         return result;
@@ -101,13 +121,14 @@
             <input
                 type="text"
                 placeholder="搜索进程..."
-                bind:value={searchQuery}
+                value={searchQuery}
+                oninput={handleSearchInput}
                 class="pl-10 pr-4 py-2 rounded-lg bg-white/5 border border-border/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
         </div>
     </div>
 
-    {#if filteredProcesses().length === 0}
+    {#if filteredProcesses.length === 0}
         <div class="flex items-center justify-center h-64">
             <div class="text-center text-muted-foreground">
                 <Activity class="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -117,11 +138,11 @@
     {:else}
         <div class="glass-card rounded-xl overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full table-fixed">
                     <thead>
                         <tr class="border-b border-border/50">
                             <th
-                                class="text-left p-3 text-xs text-muted-foreground font-medium"
+                                class="text-left p-3 text-xs text-muted-foreground font-medium w-24"
                             >
                                 <button
                                     onclick={() => handleSort("pid")}
@@ -135,7 +156,7 @@
                                 </button>
                             </th>
                             <th
-                                class="text-left p-3 text-xs text-muted-foreground font-medium"
+                                class="text-left p-3 text-xs text-muted-foreground font-medium w-auto"
                             >
                                 <button
                                     onclick={() => handleSort("name")}
@@ -149,7 +170,7 @@
                                 </button>
                             </th>
                             <th
-                                class="text-left p-3 text-xs text-muted-foreground font-medium"
+                                class="text-left p-3 text-xs text-muted-foreground font-medium w-32"
                             >
                                 <button
                                     onclick={() => handleSort("user")}
@@ -163,7 +184,7 @@
                                 </button>
                             </th>
                             <th
-                                class="text-right p-3 text-xs text-muted-foreground font-medium"
+                                class="text-right p-3 text-xs text-muted-foreground font-medium w-24"
                             >
                                 <button
                                     onclick={() => handleSort("cpu_percent")}
@@ -177,7 +198,7 @@
                                 </button>
                             </th>
                             <th
-                                class="text-right p-3 text-xs text-muted-foreground font-medium"
+                                class="text-right p-3 text-xs text-muted-foreground font-medium w-24"
                             >
                                 <button
                                     onclick={() => handleSort("mem_rss")}
@@ -191,17 +212,17 @@
                                 </button>
                             </th>
                             <th
-                                class="text-center p-3 text-xs text-muted-foreground font-medium"
+                                class="text-center p-3 text-xs text-muted-foreground font-medium w-24"
                                 >状态</th
                             >
                             <th
-                                class="text-center p-3 text-xs text-muted-foreground font-medium"
+                                class="text-center p-3 text-xs text-muted-foreground font-medium w-16"
                                 >操作</th
                             >
                         </tr>
                     </thead>
                     <tbody>
-                        {#each filteredProcesses() as proc}
+                        {#each filteredProcesses as proc (proc.pid)}
                             <tr
                                 class="border-b border-border/30 hover:bg-white/5 transition-colors"
                             >
