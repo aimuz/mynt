@@ -23,21 +23,21 @@
         showFill = true,
     }: Props = $props();
 
-    // 固定 viewBox 尺寸
+    // Use a fixed viewBox for consistent sizing
     const viewBoxWidth = 200;
     const viewBoxHeight = height;
     const padding = 2;
     const chartWidth = viewBoxWidth - padding * 2;
     const chartHeight = viewBoxHeight - padding * 2;
 
-    // 生成唯一 ID（只生成一次）
+    // Generate unique ID for gradient
     const gradientId = `sparkline-gradient-${Math.random().toString(36).slice(2, 9)}`;
 
-    // 合并路径计算，一次遍历生成两个路径
-    let paths = $derived(() => {
+    // Combine path calculations into a single pass to generate both paths
+    let paths = $derived.by(() => {
         if (!data || data.length < 2) return { linePath: "", fillPath: "" };
 
-        // 计算数据范围
+        // Calculate data range
         let max = data[0];
         let min = data[0];
         for (let i = 1; i < data.length; i++) {
@@ -48,12 +48,12 @@
         min = Math.min(min, 0);
         const range = max - min || 1;
 
-        // 预计算常量
+        // Pre-calculate constants
         const dataLength = data.length;
         const xStep = chartWidth / (dataLength - 1);
         const bottomY = padding + chartHeight;
 
-        // 构建路径字符串（使用数组 join 比字符串拼接快）
+        // Build path strings (using array join is faster than string concatenation)
         const lineSegments: string[] = [];
         let firstX = 0;
         let lastX = 0;
@@ -77,7 +77,7 @@
 
         const linePath = lineSegments.join(" ");
 
-        // 生成填充路径（仅在需要时）
+        // Generate fill path (only when needed)
         const fillPath = showFill
             ? `${linePath} L ${lastX},${bottomY} L ${firstX},${bottomY} Z`
             : "";
@@ -99,17 +99,17 @@
         </linearGradient>
     </defs>
 
-    {#if showFill && paths().fillPath}
+    {#if showFill && paths.fillPath}
         <path
-            d={paths().fillPath}
+            d={paths.fillPath}
             fill={fillColor || `url(#${gradientId})`}
             stroke="none"
         />
     {/if}
 
-    {#if paths().linePath}
+    {#if paths.linePath}
         <path
-            d={paths().linePath}
+            d={paths.linePath}
             fill="none"
             stroke={color}
             stroke-width={strokeWidth}
@@ -124,5 +124,6 @@
     .sparkline {
         display: block;
         width: 100%;
+        will-change: contents;
     }
 </style>
