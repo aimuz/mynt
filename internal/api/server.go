@@ -11,6 +11,7 @@ import (
 	"go.aimuz.me/mynt/disk"
 	"go.aimuz.me/mynt/event"
 	"go.aimuz.me/mynt/logger"
+	"go.aimuz.me/mynt/monitor"
 	"go.aimuz.me/mynt/share"
 	"go.aimuz.me/mynt/store"
 	"go.aimuz.me/mynt/task"
@@ -35,10 +36,15 @@ type Server struct {
 	authMw         *auth.Middleware
 	mux            *http.ServeMux
 	onPolicyChange func()
+	sysMon         interface {
+		GetStats() monitor.SystemStats
+		GetProcesses() ([]monitor.ProcessInfo, error)
+		KillProcess(pid int32) error
+	}
 }
 
 // NewServer creates a new API server.
-func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, sp *store.SnapshotPolicyRepo, dr *store.DiskRepo, authCfg *auth.Config, onPolicyChange func()) *Server {
+func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, sp *store.SnapshotPolicyRepo, dr *store.DiskRepo, authCfg *auth.Config, sysMon *monitor.SystemMonitor, onPolicyChange func()) *Server {
 	s := &Server{
 		zfs:            zfs,
 		disk:           diskMgr,
@@ -54,6 +60,7 @@ func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task
 		authMw:         auth.NewMiddleware(authCfg),
 		mux:            http.NewServeMux(),
 		onPolicyChange: onPolicyChange,
+		sysMon:         sysMon,
 	}
 	s.routes()
 	return s
@@ -123,6 +130,11 @@ func (s *Server) routes() {
 
 	// Real-time events - SSE
 	s.mux.HandleFunc("GET /api/v1/events", s.protected(s.handleEvents))
+
+	// System Stats (protected)
+	s.mux.HandleFunc("GET /api/v1/system/stats", s.protected(s.handleGetSystemStats))
+	s.mux.HandleFunc("GET /api/v1/system/processes", s.protected(s.handleListProcesses))
+	s.mux.HandleFunc("DELETE /api/v1/system/processes/{pid}", s.adminOnly(s.handleKillProcess))
 }
 
 // protected wraps a handler with authentication requirement.

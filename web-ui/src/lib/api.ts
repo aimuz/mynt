@@ -194,6 +194,63 @@ interface Notification {
     acked_at?: string;
 }
 
+interface CPUStats {
+    global: number;
+    per_core: number[];
+}
+
+interface MemoryStats {
+    total: number;
+    used: number;
+    cached: number;
+    free: number;
+    swap_total: number;
+    swap_used: number;
+}
+
+interface InterfaceStats {
+    name: string;
+    rx_bytes: number;
+    tx_bytes: number;
+    rx_rate: number;
+    tx_rate: number;
+    is_up: boolean;
+    ip_address: string;
+}
+
+interface SystemDiskStats {
+    name: string;
+    read_bytes: number;
+    write_bytes: number;
+    read_rate: number;
+    write_rate: number;
+}
+
+interface SystemStats {
+    cpu: CPUStats;
+    memory: MemoryStats;
+    network: Record<string, InterfaceStats>;
+    disk: Record<string, SystemDiskStats>;
+    uptime: number;
+    host_info: {
+        hostname: string;
+        os: string;
+        platform: string;
+        kernel: string;
+    };
+}
+
+interface ProcessInfo {
+    pid: number;
+    name: string;
+    username: string;
+    status: string;
+    cpu_percent: number;
+    mem_percent: number;
+    mem_rss: number;
+    cmdline: string;
+}
+
 class ApiClient {
     private token: string | null = null;
 
@@ -487,8 +544,23 @@ class ApiClient {
             body: JSON.stringify({ old_disk: oldDisk, new_disk: newDisk }),
         });
     }
+
+    // System Monitoring
+    async getSystemStats(): Promise<SystemStats> {
+        return this.request('/system/stats');
+    }
+
+    async getProcesses(): Promise<ProcessInfo[]> {
+        return this.request('/system/processes');
+    }
+
+    async killProcess(pid: number): Promise<void> {
+        return this.request(`/system/processes/${pid}`, {
+            method: 'DELETE',
+        });
+    }
 }
 
 export const api = new ApiClient();
-export type { User, Pool, VDevDetail, DiskDetail, ResilverStatus, ScrubStatus, PoolHealth, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };
+export type { User, Pool, VDevDetail, DiskDetail, ResilverStatus, ScrubStatus, PoolHealth, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus, SystemStats, ProcessInfo, InterfaceStats, SystemDiskStats, CPUStats, MemoryStats };
 

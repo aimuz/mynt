@@ -127,6 +127,11 @@ func main() {
 	}
 	defer snapshotScheduler.Stop()
 
+	// System Monitor (1s interval for UI updates)
+	sysMon := monitor.NewSystemMonitor(1 * time.Second)
+	sysMon.Start(ctx)
+	defer sysMon.Stop()
+
 	// Check initialization status
 	initialized, _ := configRepo.IsInitialized()
 	if !initialized {
@@ -135,7 +140,7 @@ func main() {
 	}
 
 	// API Server with authentication
-	srv := api.NewServer(pools, diskMgr, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, snapshotPolicyRepo, diskRepo, authConfig, func() { _ = snapshotScheduler.Reload() })
+	srv := api.NewServer(pools, diskMgr, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, snapshotPolicyRepo, diskRepo, authConfig, sysMon, func() { _ = snapshotScheduler.Reload() })
 	httpSrv := &http.Server{
 		Addr:    *addr,
 		Handler: srv,
