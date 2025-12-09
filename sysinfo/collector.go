@@ -2,7 +2,6 @@
 package sysinfo
 
 import (
-	"context"
 	"sync"
 	"syscall"
 	"time"
@@ -15,6 +14,12 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 )
 
+// cpuSnapshot stores CPU time for rate calculation.
+type cpuSnapshot struct {
+	cpuTime float64
+	at      time.Time
+}
+
 // Collector gathers system statistics using gopsutil.
 // It maintains snapshots to calculate rates.
 type Collector struct {
@@ -22,6 +27,10 @@ type Collector struct {
 	lastNet  map[string]netSnapshot
 	lastDisk map[string]diskSnapshot
 	lastTime time.Time
+
+	// Process CPU snapshots for percentage calculation
+	lastCPU     map[int]cpuSnapshot
+	lastCPUTime time.Time
 }
 
 type netSnapshot struct {
@@ -39,6 +48,7 @@ func NewCollector() *Collector {
 	return &Collector{
 		lastNet:  make(map[string]netSnapshot),
 		lastDisk: make(map[string]diskSnapshot),
+		lastCPU:  make(map[int]cpuSnapshot),
 	}
 }
 
@@ -159,63 +169,6 @@ func (c *Collector) Collect() (*Stats, error) {
 
 	c.lastTime = now
 	return stats, nil
-}
-
-// ListProcesses returns a list of running processes.
-func (c *Collector) ListProcesses() ([]Process, error) {
-	ctx := context.Background()
-	procs, err := process.ProcessesWithContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]Process, 0, len(procs))
-	for _, p := range procs {
-		proc := Process{PID: int(p.Pid)}
-
-		if name, err := p.NameWithContext(ctx); err == nil {
-			proc.Name = name
-		}
-
-		if cmdline, err := p.CmdlineWithContext(ctx); err == nil {
-			proc.Command = cmdline
-		}
-		if proc.Command == "" {
-			proc.Command = proc.Name
-		}
-
-		if user, err := p.UsernameWithContext(ctx); err == nil {
-			proc.User = user
-		}
-
-		if cpuPct, err := p.CPUPercentWithContext(ctx); err == nil {
-			proc.CPUPercent = cpuPct
-		}
-
-		if memInfo, err := p.MemoryInfoWithContext(ctx); err == nil && memInfo != nil {
-			proc.MemRSS = memInfo.RSS
-		}
-
-		if memPct, err := p.MemoryPercentWithContext(ctx); err == nil {
-			proc.MemPercent = float64(memPct)
-		}
-
-		if status, err := p.StatusWithContext(ctx); err == nil && len(status) > 0 {
-			proc.State = status[0]
-		}
-
-		if createTime, err := p.CreateTimeWithContext(ctx); err == nil {
-			proc.StartTime = createTime / 1000 // Convert from ms to seconds
-		}
-
-		if threads, err := p.NumThreadsWithContext(ctx); err == nil {
-			proc.Threads = int(threads)
-		}
-
-		result = append(result, proc)
-	}
-
-	return result, nil
 }
 
 // KillProcess sends a signal to a process.

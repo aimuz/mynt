@@ -1,7 +1,7 @@
 <script lang="ts">
     import { formatBytes } from "$lib/utils";
     import type { SysProcess } from "$lib/api";
-    import { Search, XCircle, Activity } from "@lucide/svelte";
+    import { Search, CircleX, Activity } from "@lucide/svelte";
 
     interface Props {
         processes: SysProcess[];
@@ -201,7 +201,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {#each filteredProcesses().slice(0, 100) as proc}
+                        {#each filteredProcesses() as proc}
                             <tr
                                 class="border-b border-border/30 hover:bg-white/5 transition-colors"
                             >
@@ -259,7 +259,7 @@
                                             ? "再次点击确认终止"
                                             : "终止进程"}
                                     >
-                                        <XCircle class="w-4 h-4" />
+                                        <CircleX class="w-4 h-4" />
                                     </button>
                                 </td>
                             </tr>
@@ -267,13 +267,6 @@
                     </tbody>
                 </table>
             </div>
-            {#if filteredProcesses().length > 100}
-                <div
-                    class="p-3 text-center text-sm text-muted-foreground border-t border-border/30"
-                >
-                    显示前 100 个进程，共 {filteredProcesses().length} 个
-                </div>
-            {/if}
         </div>
     {/if}
 </div>
