@@ -49,8 +49,9 @@ func (c *Collector) Collect() (*Stats, error) {
 
 	now := time.Now()
 	elapsed := now.Sub(c.lastTime).Seconds()
-	if elapsed < 0.1 {
-		elapsed = 1.0
+	skipSpeeds := c.lastTime.IsZero() || elapsed < 0.1
+	if skipSpeeds {
+		elapsed = 1.0 // Prevent division by zero
 	}
 
 	stats := &Stats{

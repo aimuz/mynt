@@ -226,10 +226,10 @@
                                 >
                                 <td class="p-3 text-sm text-right">
                                     <span
-                                        class={proc.cpu_percent > 50
-                                            ? "text-orange-400"
-                                            : proc.cpu_percent > 80
-                                              ? "text-red-400"
+                                        class={proc.cpu_percent > 80
+                                            ? "text-red-400"
+                                            : proc.cpu_percent > 50
+                                              ? "text-orange-400"
                                               : "text-foreground"}
                                     >
                                         {proc.cpu_percent.toFixed(1)}%
