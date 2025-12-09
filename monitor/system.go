@@ -6,15 +6,14 @@ import (
 	"sync"
 	"time"
 
-	"go.aimuz.me/mynt/logger"
-
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
+	"go.aimuz.me/mynt/logger"
 )
 
-// SystemStats represents the system status
+// SystemStats represents the system status.
 type SystemStats struct {
 	CPU    CPUStats    `json:"cpu"`
 	Memory MemoryStats `json:"memory"`
@@ -22,12 +21,14 @@ type SystemStats struct {
 	Uptime uint64      `json:"uptime"`
 }
 
+// CPUStats holds CPU usage information.
 type CPUStats struct {
 	TotalUsage float64   `json:"total_usage"` // Total CPU usage percentage
 	Cores      []float64 `json:"cores"`       // Usage per core
 	Model      string    `json:"model"`
 }
 
+// MemoryStats holds memory usage information.
 type MemoryStats struct {
 	Total       uint64  `json:"total"`
 	Available   uint64  `json:"available"`
@@ -35,6 +36,7 @@ type MemoryStats struct {
 	UsedPercent float64 `json:"used_percent"`
 }
 
+// SwapStats holds swap usage information.
 type SwapStats struct {
 	Total       uint64  `json:"total"`
 	Used        uint64  `json:"used"`
@@ -42,7 +44,15 @@ type SwapStats struct {
 	UsedPercent float64 `json:"used_percent"`
 }
 
-// ProcessInfo represents a single process
+// NetworkStats holds network interface counters.
+type NetworkStats struct {
+	BytesSent   uint64 `json:"bytes_sent"`
+	BytesRecv   uint64 `json:"bytes_recv"`
+	PacketsSent uint64 `json:"packets_sent"`
+	PacketsRecv uint64 `json:"packets_recv"`
+}
+
+// ProcessInfo represents a single process.
 type ProcessInfo struct {
 	PID           int32   `json:"pid"`
 	Name          string  `json:"name"`
@@ -54,59 +64,91 @@ type ProcessInfo struct {
 	Cmdline       string  `json:"cmdline"`
 }
 
-// Global process cache to enable CPU percentage calculation
-var (
-	procCache     = make(map[int32]*process.Process)
-	procCacheLock sync.RWMutex
-	lastUpdate    time.Time
-)
-
-// InitProcessMonitor starts the background process monitor
-func InitProcessMonitor(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				updateProcessCache(ctx)
-			}
-		}
-	}()
+// processFetcher abstracts the fetching of process data to facilitate testing.
+type processFetcher interface {
+	Processes(ctx context.Context) ([]*process.Process, error)
 }
 
-func updateProcessCache(ctx context.Context) {
-	procs, err := process.ProcessesWithContext(ctx)
+// realProcessFetcher uses gopsutil to fetch real processes.
+type realProcessFetcher struct{}
+
+func (f *realProcessFetcher) Processes(ctx context.Context) ([]*process.Process, error) {
+	return process.ProcessesWithContext(ctx)
+}
+
+// SystemMonitor handles system stats collection and process monitoring.
+type SystemMonitor struct {
+	mu      sync.RWMutex
+	cache   map[int32]*process.Process
+	fetcher processFetcher
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
+}
+
+// NewSystemMonitor creates a new SystemMonitor.
+func NewSystemMonitor() *SystemMonitor {
+	return &SystemMonitor{
+		cache:   make(map[int32]*process.Process),
+		fetcher: &realProcessFetcher{},
+	}
+}
+
+// Start begins the background monitoring loop.
+func (m *SystemMonitor) Start(ctx context.Context) {
+	ctx, m.cancel = context.WithCancel(ctx)
+	m.wg.Add(1)
+	go m.run(ctx)
+}
+
+// Stop stops the background monitoring loop.
+func (m *SystemMonitor) Stop() {
+	if m.cancel != nil {
+		m.cancel()
+	}
+	m.wg.Wait()
+}
+
+func (m *SystemMonitor) run(ctx context.Context) {
+	defer m.wg.Done()
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	// Initial update
+	m.updateCache(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			m.updateCache(ctx)
+		}
+	}
+}
+
+func (m *SystemMonitor) updateCache(ctx context.Context) {
+	procs, err := m.fetcher.Processes(ctx)
 	if err != nil {
 		logger.Error("failed to list processes", "error", err)
 		return
 	}
 
-	procCacheLock.Lock()
-	defer procCacheLock.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	// Create a new map to track current processes
 	newCache := make(map[int32]*process.Process)
-
 	for _, p := range procs {
-		// If we already have this process, keep the existing object
-		// This preserves the internal state needed for CPU calculation
-		if existing, ok := procCache[p.Pid]; ok {
+		if existing, ok := m.cache[p.Pid]; ok {
 			newCache[p.Pid] = existing
 		} else {
 			newCache[p.Pid] = p
 		}
 	}
-
-	procCache = newCache
-	lastUpdate = time.Now()
+	m.cache = newCache
 }
 
-// GetSystemStats returns current system statistics
-func GetSystemStats(ctx context.Context) (*SystemStats, error) {
+// GetSystemStats returns current system statistics.
+func (m *SystemMonitor) GetSystemStats(ctx context.Context) (*SystemStats, error) {
 	// CPU
 	cpuPercent, err := cpu.PercentWithContext(ctx, 0, false)
 	if err != nil {
@@ -158,33 +200,22 @@ func GetSystemStats(ctx context.Context) (*SystemStats, error) {
 	}, nil
 }
 
-// GetProcesses returns list of all running processes
-func GetProcesses(ctx context.Context) ([]ProcessInfo, error) {
-	procCacheLock.RLock()
-	defer procCacheLock.RUnlock()
-
-	// If cache is empty (first run), try to populate it immediately
-	if len(procCache) == 0 {
-		procCacheLock.RUnlock()
-		updateProcessCache(ctx)
-		procCacheLock.RLock()
-	}
+// GetProcesses returns list of all running processes.
+func (m *SystemMonitor) GetProcesses(ctx context.Context) ([]ProcessInfo, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	var result []ProcessInfo
-	for _, p := range procCache {
-		// Basic info
+	for _, p := range m.cache {
 		name, _ := p.NameWithContext(ctx)
 		username, _ := p.UsernameWithContext(ctx)
 		status, _ := p.StatusWithContext(ctx)
 		createTime, _ := p.CreateTimeWithContext(ctx)
 		cmdline, _ := p.CmdlineWithContext(ctx)
 
-		// Resources
-		// CPUPercent uses the internal state of the process object
 		cpuPct, _ := p.CPUPercentWithContext(ctx)
 		memPct, _ := p.MemoryPercentWithContext(ctx)
 
-		// Handle status slice safety
 		statusStr := ""
 		if len(status) > 0 {
 			statusStr = status[0]
@@ -204,8 +235,8 @@ func GetProcesses(ctx context.Context) ([]ProcessInfo, error) {
 	return result, nil
 }
 
-// KillProcess kills a process by PID
-func KillProcess(ctx context.Context, pid int32) error {
+// KillProcess kills a process by PID.
+func (m *SystemMonitor) KillProcess(ctx context.Context, pid int32) error {
 	p, err := process.NewProcessWithContext(ctx, pid)
 	if err != nil {
 		return fmt.Errorf("process not found: %w", err)
@@ -213,18 +244,11 @@ func KillProcess(ctx context.Context, pid int32) error {
 	return p.KillWithContext(ctx)
 }
 
-// NetworkStats
-type NetworkStats struct {
-	BytesSent   uint64 `json:"bytes_sent"`
-	BytesRecv   uint64 `json:"bytes_recv"`
-	PacketsSent uint64 `json:"packets_sent"`
-	PacketsRecv uint64 `json:"packets_recv"`
-}
-
-func GetNetworkStats(ctx context.Context) (*NetworkStats, error) {
+// GetNetworkStats returns network statistics.
+func (m *SystemMonitor) GetNetworkStats(ctx context.Context) (*NetworkStats, error) {
 	counters, err := net.IOCountersWithContext(ctx, false)
 	if err != nil || len(counters) == 0 {
-		return nil, err
+		return nil, fmt.Errorf("failed to get network counters: %w", err)
 	}
 	c := counters[0]
 	return &NetworkStats{

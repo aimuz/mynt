@@ -32,6 +32,7 @@ type Server struct {
 	notification   *store.NotificationRepo
 	snapshotPolicy *store.SnapshotPolicyRepo
 	diskRepo       *store.DiskRepo
+	monitor        *monitor.SystemMonitor
 	authConfig     *auth.Config
 	authMw         *auth.Middleware
 	mux            *http.ServeMux
@@ -39,7 +40,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server.
-func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, sp *store.SnapshotPolicyRepo, dr *store.DiskRepo, authCfg *auth.Config, onPolicyChange func()) *Server {
+func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task.Manager, sm *share.Manager, um *user.Manager, cfg *store.ConfigRepo, notif *store.NotificationRepo, sp *store.SnapshotPolicyRepo, dr *store.DiskRepo, mon *monitor.SystemMonitor, authCfg *auth.Config, onPolicyChange func()) *Server {
 	s := &Server{
 		zfs:            zfs,
 		disk:           diskMgr,
@@ -51,6 +52,7 @@ func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task
 		notification:   notif,
 		snapshotPolicy: sp,
 		diskRepo:       dr,
+		monitor:        mon,
 		authConfig:     authCfg,
 		authMw:         auth.NewMiddleware(authCfg),
 		mux:            http.NewServeMux(),
@@ -865,19 +867,19 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 // System Monitoring Handlers
 
 func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := monitor.GetSystemStats(r.Context())
+	stats, err := s.monitor.GetSystemStats(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	netStats, err := monitor.GetNetworkStats(r.Context())
+	netStats, err := s.monitor.GetNetworkStats(r.Context())
 	if err == nil {
 		// Just merge it into the response dynamically
 		respondJSON(w, http.StatusOK, map[string]interface{}{
-			"cpu":    stats.CPU,
-			"memory": stats.Memory,
-			"swap":   stats.Swap,
+			"cpu":     stats.CPU,
+			"memory":  stats.Memory,
+			"swap":    stats.Swap,
 			"network": netStats,
 		})
 		return
@@ -887,7 +889,7 @@ func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListProcesses(w http.ResponseWriter, r *http.Request) {
-	procs, err := monitor.GetProcesses(r.Context())
+	procs, err := s.monitor.GetProcesses(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -903,7 +905,7 @@ func (s *Server) handleKillProcess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := monitor.KillProcess(r.Context(), int32(pid)); err != nil {
+	if err := s.monitor.KillProcess(r.Context(), int32(pid)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
