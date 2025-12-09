@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { formatBytes } from "$lib/utils";
+    import { formatBytes, formatUptime, formatSpeed } from "$lib/utils";
     import type { SystemStats } from "$lib/api";
     import {
         Cpu,
@@ -25,24 +25,6 @@
         networkInHistory = [],
         diskReadHistory = [],
     }: Props = $props();
-
-    function formatSpeed(bytesPerSec: number): string {
-        if (bytesPerSec === 0) return "0 B/s";
-        return formatBytes(bytesPerSec) + "/s";
-    }
-
-    function formatUptime(seconds: number): string {
-        const days = Math.floor(seconds / 86400);
-        const hours = Math.floor((seconds % 86400) / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-
-        const parts = [];
-        if (days > 0) parts.push(`${days} 天`);
-        if (hours > 0) parts.push(`${hours} 小时`);
-        if (minutes > 0 || parts.length === 0) parts.push(`${minutes} 分钟`);
-
-        return parts.join(" ");
-    }
 </script>
 
 <div class="p-6 overflow-auto flex-1">

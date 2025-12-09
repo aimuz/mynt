@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { formatBytes } from "$lib/utils";
+    import { formatBytes, formatSpeed } from "$lib/utils";
     import type { NetStats } from "$lib/api";
     import { Network, Wifi, ArrowDown, ArrowUp } from "@lucide/svelte";
     import Sparkline from "$lib/components/Sparkline.svelte";
@@ -11,11 +11,6 @@
     }
 
     let { network, inHistory = [], outHistory = [] }: Props = $props();
-
-    function formatSpeed(bytesPerSec: number): string {
-        if (bytesPerSec === 0) return "0 B/s";
-        return formatBytes(bytesPerSec) + "/s";
-    }
 
     // Calculate totals
     let totalSpeedIn = $derived(
