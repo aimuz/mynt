@@ -41,6 +41,11 @@ func (m *Manager) listBasic(ctx context.Context) ([]Info, error) {
 			continue
 		}
 
+		// Exclude ZFS volumes (e.g. zd0, zd16) which appear as disks
+		if strings.HasPrefix(d.Name, "zd") {
+			continue
+		}
+
 		info := Info{
 			Name:        d.Name,
 			Path:        d.Path,
