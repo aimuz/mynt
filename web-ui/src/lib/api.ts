@@ -194,6 +194,43 @@ interface Notification {
     acked_at?: string;
 }
 
+export interface SystemStats {
+    cpu: {
+        total_usage: number;
+        cores: number[];
+        model: string;
+    };
+    memory: {
+        total: number;
+        available: number;
+        used: number;
+        used_percent: number;
+    };
+    swap: {
+        total: number;
+        used: number;
+        free: number;
+        used_percent: number;
+    };
+    network?: {
+        bytes_sent: number;
+        bytes_recv: number;
+        packets_sent: number;
+        packets_recv: number;
+    };
+}
+
+export interface ProcessInfo {
+    pid: number;
+    name: string;
+    username: string;
+    status: string;
+    cpu_percent: number;
+    memory_percent: number;
+    create_time: number;
+    cmdline: string;
+}
+
 class ApiClient {
     private token: string | null = null;
 
@@ -485,6 +522,21 @@ class ApiClient {
         return this.request(`/pools/${poolName}/replace`, {
             method: 'POST',
             body: JSON.stringify({ old_disk: oldDisk, new_disk: newDisk }),
+        });
+    }
+
+    // System Monitoring
+    async getSystemStats(): Promise<SystemStats> {
+        return this.request<SystemStats>("/system/stats");
+    }
+
+    async getProcesses(): Promise<ProcessInfo[]> {
+        return this.request<ProcessInfo[]>("/system/processes");
+    }
+
+    async killProcess(pid: number): Promise<void> {
+        return this.request<void>(`/system/processes/${pid}`, {
+            method: "DELETE",
         });
     }
 }

@@ -116,6 +116,23 @@
             color: "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
             onClick: () => openWindow("settings", "Settings", Settings, null),
         },
+        {
+            id: "activity",
+            name: "Activity Monitor",
+            icon: Activity,
+            color: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+            onClick: async () => {
+                const module = await import(
+                    "$lib/apps/ActivityMonitorApp.svelte"
+                );
+                openWindow(
+                    "activity",
+                    "Activity Monitor",
+                    Activity,
+                    module.default,
+                );
+            },
+        },
     ];
 
     function bringToFront(id: string) {

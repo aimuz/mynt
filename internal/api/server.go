@@ -11,6 +11,7 @@ import (
 	"go.aimuz.me/mynt/disk"
 	"go.aimuz.me/mynt/event"
 	"go.aimuz.me/mynt/logger"
+	"go.aimuz.me/mynt/monitor"
 	"go.aimuz.me/mynt/share"
 	"go.aimuz.me/mynt/store"
 	"go.aimuz.me/mynt/task"
@@ -123,6 +124,11 @@ func (s *Server) routes() {
 
 	// Real-time events - SSE
 	s.mux.HandleFunc("GET /api/v1/events", s.protected(s.handleEvents))
+
+	// System Monitoring
+	s.mux.HandleFunc("GET /api/v1/system/stats", s.protected(s.handleSystemStats))
+	s.mux.HandleFunc("GET /api/v1/system/processes", s.protected(s.handleListProcesses))
+	s.mux.HandleFunc("DELETE /api/v1/system/processes/{pid}", s.adminOnly(s.handleKillProcess))
 }
 
 // protected wraps a handler with authentication requirement.
@@ -854,4 +860,53 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			w.(http.Flusher).Flush()
 		}
 	}
+}
+
+// System Monitoring Handlers
+
+func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := monitor.GetSystemStats(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	netStats, err := monitor.GetNetworkStats(r.Context())
+	if err == nil {
+		// Just merge it into the response dynamically
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"cpu":    stats.CPU,
+			"memory": stats.Memory,
+			"swap":   stats.Swap,
+			"network": netStats,
+		})
+		return
+	}
+
+	respondJSON(w, http.StatusOK, stats)
+}
+
+func (s *Server) handleListProcesses(w http.ResponseWriter, r *http.Request) {
+	procs, err := monitor.GetProcesses(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	respondJSON(w, http.StatusOK, procs)
+}
+
+func (s *Server) handleKillProcess(w http.ResponseWriter, r *http.Request) {
+	pidStr := r.PathValue("pid")
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		http.Error(w, "invalid pid", http.StatusBadRequest)
+		return
+	}
+
+	if err := monitor.KillProcess(r.Context(), int32(pid)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
