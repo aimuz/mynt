@@ -110,6 +110,23 @@
             },
         },
         {
+            id: "activity",
+            name: "Activity",
+            icon: Activity,
+            color: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+            onClick: async () => {
+                const module = await import(
+                    "$lib/apps/ActivityMonitorApp.svelte"
+                );
+                openWindow(
+                    "activity",
+                    "Activity Monitor",
+                    Activity,
+                    module.default,
+                );
+            },
+        },
+        {
             id: "settings",
             name: "Settings",
             icon: Settings,
