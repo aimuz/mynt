@@ -134,6 +134,9 @@ func main() {
 			"setup_url", "http://localhost:8080/setup")
 	}
 
+	// Initialize process monitor
+	monitor.InitProcessMonitor(ctx)
+
 	// API Server with authentication
 	srv := api.NewServer(pools, diskMgr, bus, mgr, shareMgr, userMgr, configRepo, notificationRepo, snapshotPolicyRepo, diskRepo, authConfig, func() { _ = snapshotScheduler.Reload() })
 	httpSrv := &http.Server{

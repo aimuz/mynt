@@ -3,6 +3,10 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
+	"go.aimuz.me/mynt/logger"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
@@ -48,6 +52,57 @@ type ProcessInfo struct {
 	MemoryPercent float32 `json:"memory_percent"`
 	CreateTime    int64   `json:"create_time"`
 	Cmdline       string  `json:"cmdline"`
+}
+
+// Global process cache to enable CPU percentage calculation
+var (
+	procCache     = make(map[int32]*process.Process)
+	procCacheLock sync.RWMutex
+	lastUpdate    time.Time
+)
+
+// InitProcessMonitor starts the background process monitor
+func InitProcessMonitor(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				updateProcessCache(ctx)
+			}
+		}
+	}()
+}
+
+func updateProcessCache(ctx context.Context) {
+	procs, err := process.ProcessesWithContext(ctx)
+	if err != nil {
+		logger.Error("failed to list processes", "error", err)
+		return
+	}
+
+	procCacheLock.Lock()
+	defer procCacheLock.Unlock()
+
+	// Create a new map to track current processes
+	newCache := make(map[int32]*process.Process)
+
+	for _, p := range procs {
+		// If we already have this process, keep the existing object
+		// This preserves the internal state needed for CPU calculation
+		if existing, ok := procCache[p.Pid]; ok {
+			newCache[p.Pid] = existing
+		} else {
+			newCache[p.Pid] = p
+		}
+	}
+
+	procCache = newCache
+	lastUpdate = time.Now()
 }
 
 // GetSystemStats returns current system statistics
@@ -105,13 +160,18 @@ func GetSystemStats(ctx context.Context) (*SystemStats, error) {
 
 // GetProcesses returns list of all running processes
 func GetProcesses(ctx context.Context) ([]ProcessInfo, error) {
-	procs, err := process.ProcessesWithContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list processes: %w", err)
+	procCacheLock.RLock()
+	defer procCacheLock.RUnlock()
+
+	// If cache is empty (first run), try to populate it immediately
+	if len(procCache) == 0 {
+		procCacheLock.RUnlock()
+		updateProcessCache(ctx)
+		procCacheLock.RLock()
 	}
 
 	var result []ProcessInfo
-	for _, p := range procs {
+	for _, p := range procCache {
 		// Basic info
 		name, _ := p.NameWithContext(ctx)
 		username, _ := p.UsernameWithContext(ctx)
@@ -120,16 +180,21 @@ func GetProcesses(ctx context.Context) ([]ProcessInfo, error) {
 		cmdline, _ := p.CmdlineWithContext(ctx)
 
 		// Resources
-		// Note: CPUPercent returns usage since last call, so it might be 0 on first call or instant
-		// For accurate reading, we might need state, but for simple list 0 is expected initially
+		// CPUPercent uses the internal state of the process object
 		cpuPct, _ := p.CPUPercentWithContext(ctx)
 		memPct, _ := p.MemoryPercentWithContext(ctx)
+
+		// Handle status slice safety
+		statusStr := ""
+		if len(status) > 0 {
+			statusStr = status[0]
+		}
 
 		result = append(result, ProcessInfo{
 			PID:           p.Pid,
 			Name:          name,
 			Username:      username,
-			Status:        status[0], // usually returns []string
+			Status:        statusStr,
 			CPUPercent:    cpuPct,
 			MemoryPercent: memPct,
 			CreateTime:    createTime,

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, onDestroy } from "svelte";
+    import { onMount } from "svelte";
     import { api, type SystemStats, type ProcessInfo } from "$lib/api";
     import { formatBytes } from "$lib/utils";
     import {
@@ -23,7 +23,6 @@
     let sortBy = $state<keyof ProcessInfo>("cpu_percent");
     let sortDesc = $state(true);
     let selectedPid = $state<number | null>(null);
-    let pollInterval: any;
 
     // --- Computed ---
     let filteredProcesses = $derived.by(() => {
@@ -59,14 +58,18 @@
         networkTx: new Array(60).fill(0)
     });
 
+    let lastNetworkStats = $state<{
+        bytes_sent: number;
+        bytes_recv: number;
+        timestamp: number;
+    } | null>(null);
+
     // --- Lifecycle ---
     onMount(() => {
         fetchData();
-        pollInterval = setInterval(fetchData, 2000); // Poll every 2s
-    });
+        const interval = setInterval(fetchData, 2000); // Poll every 2s
 
-    onDestroy(() => {
-        if (pollInterval) clearInterval(pollInterval);
+        return () => clearInterval(interval);
     });
 
     // --- Methods ---
@@ -78,9 +81,28 @@
             ]);
 
             // Update history
-            const now = new Date();
+            const now = Date.now();
             history.cpu = [...history.cpu.slice(1), newStats.cpu.total_usage];
             history.memory = [...history.memory.slice(1), newStats.memory.used_percent];
+
+            // Network Stats calculation
+            if (newStats.network) {
+                if (lastNetworkStats) {
+                    const timeDiff = (now - lastNetworkStats.timestamp) / 1000; // seconds
+                    if (timeDiff > 0) {
+                        const rxRate = (newStats.network.bytes_recv - lastNetworkStats.bytes_recv) / timeDiff;
+                        const txRate = (newStats.network.bytes_sent - lastNetworkStats.bytes_sent) / timeDiff;
+
+                        history.networkRx = [...history.networkRx.slice(1), rxRate];
+                        history.networkTx = [...history.networkTx.slice(1), txRate];
+                    }
+                }
+                lastNetworkStats = {
+                    bytes_sent: newStats.network.bytes_sent,
+                    bytes_recv: newStats.network.bytes_recv,
+                    timestamp: now
+                };
+            }
 
             stats = newStats;
             processes = newProcs;
@@ -114,10 +136,14 @@
     }
 
     // --- Components ---
-    function Graph({ data, color }: { data: number[], color: string }) {
+    function Graph({ data, color, autoScale = false }: { data: number[], color: string, autoScale?: boolean }) {
         const height = 60;
         const width = 100;
-        const max = 100; // Percent
+        let max = 100; // Default Percent
+
+        if (autoScale) {
+            max = Math.max(...data, 1); // Avoid division by zero
+        }
 
         const points = data.map((val, i) => {
             const x = (i / (data.length - 1)) * width;
@@ -231,14 +257,21 @@
                 <!-- Graph -->
                 <div class="col-span-2 bg-background/50 rounded-lg border border-border/50 p-3 flex flex-col relative overflow-hidden">
                      <div class="absolute inset-0 opacity-50">
-                        {@html Graph({
-                            data: activeTab === 'memory' ? history.memory : history.cpu,
-                            color: activeTab === 'memory' ? '#10b981' : '#3b82f6'
-                        })}
+                        {#if activeTab === 'network'}
+                             {@html Graph({ data: history.networkRx, color: '#10b981', autoScale: true })}
+                        {:else}
+                            {@html Graph({
+                                data: activeTab === 'memory' ? history.memory : history.cpu,
+                                color: activeTab === 'memory' ? '#10b981' : '#3b82f6'
+                            })}
+                        {/if}
                      </div>
                      <div class="relative z-10 flex justify-between items-start">
                          <span class="text-xs font-medium uppercase text-muted-foreground">
-                             {activeTab === 'memory' ? 'Memory History' : 'CPU History'}
+                             {#if activeTab === 'cpu'}CPU History
+                             {:else if activeTab === 'memory'}Memory History
+                             {:else if activeTab === 'network'}Network RX Rate
+                             {:else}History{/if}
                          </span>
                      </div>
                 </div>
@@ -271,9 +304,26 @@
                             <span class="text-muted-foreground">Total:</span>
                             <span class="font-mono font-medium">{formatBytes(stats.memory.total)}</span>
                         </div>
+                    {:else if activeTab === 'network' && stats.network}
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">RX Rate:</span>
+                            <span class="font-mono font-medium">{formatBytes(history.networkRx[history.networkRx.length - 1] || 0)}/s</span>
+                        </div>
+                         <div class="flex justify-between">
+                            <span class="text-muted-foreground">TX Rate:</span>
+                            <span class="font-mono font-medium">{formatBytes(history.networkTx[history.networkTx.length - 1] || 0)}/s</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">Total RX:</span>
+                            <span class="font-mono font-medium">{formatBytes(stats.network.bytes_recv)}</span>
+                        </div>
+                         <div class="flex justify-between">
+                            <span class="text-muted-foreground">Total TX:</span>
+                            <span class="font-mono font-medium">{formatBytes(stats.network.bytes_sent)}</span>
+                        </div>
                     {:else}
                         <div class="flex items-center justify-center h-full text-muted-foreground">
-                            Select CPU or Memory tab for details
+                            Select a tab for details
                         </div>
                     {/if}
                 </div>
