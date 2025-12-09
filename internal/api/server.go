@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -890,13 +891,9 @@ func (s *Server) handleListProcesses(w http.ResponseWriter, r *http.Request) {
 	// Optional filtering by name
 	filter := r.URL.Query().Get("filter")
 	if filter != "" {
-		var filtered []sysinfo.Process
-		for _, p := range processes {
-			if containsIgnoreCase(p.Name, filter) || containsIgnoreCase(p.Command, filter) {
-				filtered = append(filtered, p)
-			}
-		}
-		processes = filtered
+		processes = slices.DeleteFunc(processes, func(p sysinfo.Process) bool {
+			return !containsIgnoreCase(p.Name, filter) && !containsIgnoreCase(p.Command, filter)
+		})
 	}
 
 	respondJSON(w, http.StatusOK, processes)
