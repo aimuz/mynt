@@ -487,8 +487,83 @@ class ApiClient {
             body: JSON.stringify({ old_disk: oldDisk, new_disk: newDisk }),
         });
     }
+
+    // System monitoring
+    async getSystemStats(): Promise<SystemStats> {
+        return this.request('/system/stats');
+    }
+
+    async listProcesses(filter?: string): Promise<SysProcess[]> {
+        const params = filter ? `?filter=${encodeURIComponent(filter)}` : '';
+        return this.request(`/system/processes${params}`);
+    }
+
+    async signalProcess(pid: number, signal: 'TERM' | 'KILL' = 'TERM'): Promise<void> {
+        return this.request(`/system/processes/${pid}/signal`, {
+            method: 'POST',
+            body: JSON.stringify({ signal }),
+        });
+    }
+}
+
+// System monitoring types
+interface SystemStats {
+    cpu: CPUStats;
+    memory: MemStats;
+    network: NetStats[];
+    disk_io: DiskIOStats[];
+}
+
+interface CPUStats {
+    cores: number[];
+    total: number;
+    temperature: number;
+    frequency: number;
+    core_count: number;
+}
+
+interface MemStats {
+    total: number;
+    used: number;
+    available: number;
+    cached: number;
+    buffers: number;
+    swap_total: number;
+    swap_used: number;
+    percent: number;
+}
+
+interface NetStats {
+    name: string;
+    bytes_in: number;
+    bytes_out: number;
+    speed_in: number;
+    speed_out: number;
+    link_speed: number;
+    is_up: boolean;
+}
+
+interface DiskIOStats {
+    device: string;
+    read_bytes: number;
+    write_bytes: number;
+    read_speed: number;
+    write_speed: number;
+}
+
+interface SysProcess {
+    pid: number;
+    name: string;
+    command: string;
+    user: string;
+    cpu_percent: number;
+    mem_percent: number;
+    mem_rss: number;
+    state: string;
+    start_time: number;
+    threads: number;
 }
 
 export const api = new ApiClient();
-export type { User, Pool, VDevDetail, DiskDetail, ResilverStatus, ScrubStatus, PoolHealth, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus };
+export type { User, Pool, VDevDetail, DiskDetail, ResilverStatus, ScrubStatus, PoolHealth, Disk, Share, Notification, Snapshot, StorageSpace, CreateDatasetRequest, SnapshotPolicy, SmartAttribute, DetailedSmartReport, SmartTestStatus, SystemStats, CPUStats, MemStats, NetStats, DiskIOStats, SysProcess };
 

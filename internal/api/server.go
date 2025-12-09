@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"go.aimuz.me/mynt/auth"
@@ -13,6 +15,7 @@ import (
 	"go.aimuz.me/mynt/logger"
 	"go.aimuz.me/mynt/share"
 	"go.aimuz.me/mynt/store"
+	"go.aimuz.me/mynt/sysinfo"
 	"go.aimuz.me/mynt/task"
 	"go.aimuz.me/mynt/user"
 	webui "go.aimuz.me/mynt/web-ui"
@@ -35,6 +38,7 @@ type Server struct {
 	authMw         *auth.Middleware
 	mux            *http.ServeMux
 	onPolicyChange func()
+	sysinfo        *sysinfo.Collector
 }
 
 // NewServer creates a new API server.
@@ -54,6 +58,7 @@ func NewServer(zfs *zfs.Manager, diskMgr *disk.Manager, bus *event.Bus, tm *task
 		authMw:         auth.NewMiddleware(authCfg),
 		mux:            http.NewServeMux(),
 		onPolicyChange: onPolicyChange,
+		sysinfo:        sysinfo.NewCollector(),
 	}
 	s.routes()
 	return s
@@ -123,6 +128,11 @@ func (s *Server) routes() {
 
 	// Real-time events - SSE
 	s.mux.HandleFunc("GET /api/v1/events", s.protected(s.handleEvents))
+
+	// System monitoring
+	s.mux.HandleFunc("GET /api/v1/system/stats", s.protected(s.handleSystemStats))
+	s.mux.HandleFunc("GET /api/v1/system/processes", s.protected(s.handleListProcesses))
+	s.mux.HandleFunc("POST /api/v1/system/processes/{pid}/signal", s.adminOnly(s.handleSignalProcess))
 }
 
 // protected wraps a handler with authentication requirement.
@@ -854,4 +864,75 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			w.(http.Flusher).Flush()
 		}
 	}
+}
+
+// System monitoring handlers
+
+// handleSystemStats returns real-time system statistics.
+func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := s.sysinfo.Collect()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, stats)
+}
+
+// handleListProcesses returns a list of running processes.
+func (s *Server) handleListProcesses(w http.ResponseWriter, r *http.Request) {
+	processes, err := s.sysinfo.ListProcesses()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Optional filtering by name
+	filter := r.URL.Query().Get("filter")
+	if filter != "" {
+		var filtered []sysinfo.Process
+		for _, p := range processes {
+			if containsIgnoreCase(p.Name, filter) || containsIgnoreCase(p.Command, filter) {
+				filtered = append(filtered, p)
+			}
+		}
+		processes = filtered
+	}
+
+	respondJSON(w, http.StatusOK, processes)
+}
+
+// handleSignalProcess sends a signal to a process. Admin only.
+func (s *Server) handleSignalProcess(w http.ResponseWriter, r *http.Request) {
+	pidStr := r.PathValue("pid")
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		http.Error(w, "invalid pid", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Signal string `json:"signal"` // "TERM" or "KILL"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	sig := syscall.SIGTERM
+	if req.Signal == "KILL" {
+		sig = syscall.SIGKILL
+	}
+
+	if err := s.sysinfo.KillProcess(pid, sig); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// containsIgnoreCase checks if s contains substr (case-insensitive).
+func containsIgnoreCase(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
