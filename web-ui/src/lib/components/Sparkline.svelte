@@ -109,6 +109,5 @@
     .sparkline {
         display: block;
         width: 100%;
-        will-change: contents;
     }
 </style>
