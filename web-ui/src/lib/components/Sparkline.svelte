@@ -37,7 +37,7 @@
     let paths = $derived.by(() => {
         if (!data || data.length < 2) return { linePath: "", fillPath: "" };
 
-        // Calculate data range
+        // Calculate data range in single pass
         let max = data[0];
         let min = data[0];
         for (let i = 1; i < data.length; i++) {
@@ -46,40 +46,25 @@
         }
         max = Math.max(max, 1);
         min = Math.min(min, 0);
-        const range = max - min || 1;
 
-        // Pre-calculate constants
+        // Pre-calculate constants outside loop
         const dataLength = data.length;
         const xStep = chartWidth / (dataLength - 1);
-        const bottomY = padding + chartHeight;
+        const baseY = padding + chartHeight;
+        const yScale = chartHeight / (max - min || 1);
 
-        // Build path strings (using array join is faster than string concatenation)
-        const lineSegments: string[] = [];
-        let firstX = 0;
-        let lastX = 0;
+        // Build path string directly (avoid array allocation + join overhead)
+        const firstX = padding;
+        const lastX = padding + (dataLength - 1) * xStep;
+        let linePath = `M ${firstX},${baseY - (data[0] - min) * yScale}`;
 
-        for (let i = 0; i < dataLength; i++) {
-            const x = padding + i * xStep;
-            const y =
-                padding + chartHeight - ((data[i] - min) / range) * chartHeight;
-
-            if (i === 0) {
-                lineSegments.push(`M ${x},${y}`);
-                firstX = x;
-            } else {
-                lineSegments.push(`L ${x},${y}`);
-            }
-
-            if (i === dataLength - 1) {
-                lastX = x;
-            }
+        for (let i = 1; i < dataLength; i++) {
+            linePath += ` L ${padding + i * xStep},${baseY - (data[i] - min) * yScale}`;
         }
-
-        const linePath = lineSegments.join(" ");
 
         // Generate fill path (only when needed)
         const fillPath = showFill
-            ? `${linePath} L ${lastX},${bottomY} L ${firstX},${bottomY} Z`
+            ? `${linePath} L ${lastX},${baseY} L ${firstX},${baseY} Z`
             : "";
 
         return { linePath, fillPath };
