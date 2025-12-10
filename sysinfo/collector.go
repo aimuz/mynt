@@ -31,6 +31,8 @@ type Collector struct {
 	// Process CPU snapshots for percentage calculation
 	lastCPU     map[int]cpuSnapshot
 	lastCPUTime time.Time
+	uidCache    map[int]string
+	readBuf     [4096]byte
 }
 
 type netSnapshot struct {
@@ -49,6 +51,7 @@ func NewCollector() *Collector {
 		lastNet:  make(map[string]netSnapshot),
 		lastDisk: make(map[string]diskSnapshot),
 		lastCPU:  make(map[int]cpuSnapshot),
+		uidCache: make(map[int]string),
 	}
 }
 

@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !linux
 
 // Package sysinfo provides system information collection.
 // This file contains non-Linux implementation using gopsutil (slower but portable).
@@ -12,7 +12,6 @@ import (
 
 // ListProcesses returns a list of running processes.
 // Uses gopsutil for portability on non-Linux systems.
-// ListProcesses returns a list of running processes.
 func (c *Collector) ListProcesses() ([]Process, error) {
 	ctx := context.Background()
 	procs, err := process.ProcessesWithContext(ctx)

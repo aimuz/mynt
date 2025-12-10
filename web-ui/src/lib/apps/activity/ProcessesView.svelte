@@ -98,6 +98,8 @@
                 return "僵尸";
             case "T":
                 return "已停止";
+            case "I":
+                return "空闲";
             default:
                 return state;
         }
