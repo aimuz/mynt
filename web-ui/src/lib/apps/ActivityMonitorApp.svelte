@@ -141,7 +141,9 @@
         try {
             const [statsData, processData] = await Promise.all([
                 api.getSystemStats().catch(() => null),
-                api.listProcesses().catch(() => []),
+                currentView === "processes"
+                    ? api.listProcesses().catch(() => null)
+                    : Promise.resolve(null),
             ]);
 
             if (statsData) {
@@ -209,6 +211,14 @@
         return newHistory;
     }
 
+    // Switch view and immediately load data if needed
+    async function switchView(viewId: string) {
+        currentView = viewId;
+        if (viewId === "processes" && processes.length === 0) {
+            processes = await api.listProcesses().catch(() => []);
+        }
+    }
+
     async function handleKillProcess(
         pid: number,
         signal: "TERM" | "KILL" = "TERM",
@@ -230,7 +240,7 @@
             {#each navItems as item}
                 {@const historyData = getHistoryData(item.id) || []}
                 <button
-                    onclick={() => (currentView = item.id)}
+                    onclick={() => switchView(item.id)}
                     class="w-full text-left px-3 py-2 rounded-lg text-sm transition-all mb-1 {currentView ===
                     item.id
                         ? 'bg-primary/10 text-primary'
