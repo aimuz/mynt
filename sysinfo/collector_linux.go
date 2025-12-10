@@ -32,7 +32,7 @@ var bootTime = getBootTime()
 func getBootTime() int64 {
 	data, err := os.ReadFile("/proc/stat")
 	if err != nil {
-		return 0
+		panic(fmt.Sprintf("failed to read /proc/stat: %v", err))
 	}
 	// Scan lines without allocating a slice
 	for len(data) > 0 {
@@ -58,7 +58,7 @@ var memTotal uint64
 func init() {
 	data, err := os.ReadFile("/proc/meminfo")
 	if err != nil {
-		return
+		panic(fmt.Sprintf("failed to read /proc/meminfo: %v", err))
 	}
 	// Scan lines without allocating a slice
 	for len(data) > 0 {
@@ -103,11 +103,10 @@ func (c *Collector) ListProcesses() ([]Process, error) {
 		// Parse /proc/[pid]/status for UID and VmRSS
 		c.parseStatus(pid, &proc)
 
+		proc.Command = proc.Name
 		// Parse /proc/[pid]/cmdline for full command
 		if cmdline := c.readCmdline(pid); cmdline != "" {
 			proc.Command = cmdline
-		} else {
-			proc.Command = proc.Name
 		}
 
 		// Calculate memory percentage
@@ -173,7 +172,7 @@ func (c *Collector) parseProcStat(pid int) (proc Process, cpuTime float64, ok bo
 		case 12:
 			stime, _ = strconv.ParseFloat(string(field), 64)
 		case 17:
-			proc.Threads, _ = strconv.Atoi(string(field))
+			proc.Threads, _ = atoi(field)
 		case 19:
 			starttime, _ := strconv.ParseInt(string(field), 10, 64)
 			// Convert starttime from clock ticks since boot to Unix timestamp in milliseconds
@@ -260,14 +259,15 @@ func (c *Collector) parseStatus(pid int, proc *Process) {
 		}
 		if !foundUID && bytes.HasPrefix(line, []byte("Uid:")) {
 			// Format: "Uid:\t1000\t1000\t1000\t1000"
-			// Skip "Uid:" and parse first number
-			if uid := parseFirstNumber(line[4:]); uid > 0 || bytes.Contains(line[4:], []byte("0")) {
+			// Skip "Uid:\t" and parse first number
+			if uid := parseFirstNumber(line[5:]); uid > 0 {
 				proc.User = c.lookupUsername(int(uid))
 			}
 			foundUID = true
 		} else if !foundRSS && bytes.HasPrefix(line, []byte("VmRSS:")) {
 			// Format: "VmRSS:\t   12345 kB"
-			if v := parseFirstNumber(line[6:]); v > 0 {
+			// Skip "VmRSS:\t" and parse first number
+			if v := parseFirstNumber(line[7:]); v > 0 {
 				proc.MemRSS = v * 1024 // Convert kB to bytes
 			}
 			foundRSS = true
@@ -395,7 +395,7 @@ func parseDirents(buf []byte, fn func(int) bool) bool {
 
 			// Quick filter: PIDs start with digit 1-9
 			if len(name) > 0 && name[0] >= '1' && name[0] <= '9' {
-				if pid, ok := atoi(name); ok {
+				if pid, ok := atoi(name); ok && pid > 0 {
 					if !fn(pid) {
 						return false
 					}
@@ -423,5 +423,5 @@ func atoi(b []byte) (int, bool) {
 		n = n*10 + int(c-'0')
 	}
 
-	return n, n > 0
+	return n, true
 }
