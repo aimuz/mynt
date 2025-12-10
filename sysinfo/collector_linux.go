@@ -49,7 +49,7 @@ func getBootTime() int64 {
 			}
 		}
 	}
-	return 0
+	panic("btime not found in /proc/stat")
 }
 
 // memTotal caches total system memory in bytes.
