@@ -2,7 +2,6 @@
     import {
         Database,
         FolderOpen,
-        HardDrive,
         Settings,
         Users,
         Bell,
@@ -13,13 +12,9 @@
     import Dock, { type DesktopApp } from "$lib/components/Dock.svelte";
     import Window from "$lib/components/Window.svelte";
     import Widget from "$lib/components/Widget.svelte";
-    // Apps are now lazy loaded
-    // import DashboardApp from "$lib/apps/DashboardApp.svelte";
-    // import StorageApp from "$lib/apps/StorageApp.svelte";
     import SystemStatus from "$lib/widgets/SystemStatus.svelte";
     import Clock from "$lib/widgets/Clock.svelte";
     import RecentNotifications from "$lib/widgets/RecentNotifications.svelte";
-    import WallpaperSelector from "$lib/components/WallpaperSelector.svelte";
     import { onMount } from "svelte";
     import { goto } from "$app/navigation";
     import { api } from "$lib/api";
@@ -243,9 +238,10 @@
         showContextMenu = false;
     }
 
-    function openWallpaperSelector() {
+    async function openWallpaperSelector() {
+        const module = await import("$lib/apps/WallpaperSelector.svelte");
         openWindow("wallpaper", "Change Wallpaper", Image, () => ({
-            component: WallpaperSelector,
+            component: module.default,
             props: {
                 onClose: () => closeWindow("wallpaper"),
             },
