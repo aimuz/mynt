@@ -6,6 +6,7 @@
     import CreatePoolWindow from "$lib/apps/CreatePoolWindow.svelte";
     import PoolDetailWindow from "$lib/apps/storage/PoolDetailWindow.svelte";
     import EmptyState from "$lib/components/EmptyState.svelte";
+    import { getHealthBadgeColor } from "./utils";
 
     // View state
     let pools = $state<Pool[]>([]);
@@ -30,10 +31,11 @@
 
     async function loadData() {
         try {
-            pools = (await api.listPools().catch(() => [])) || [];
-            loading = false;
+            pools = (await api.listPools()) || [];
         } catch (err) {
             console.error("Failed to load data:", err);
+            pools = [];
+        } finally {
             loading = false;
         }
     }
@@ -55,21 +57,6 @@
                 props: { poolName: pool.name, onRefresh: loadData },
             }),
         );
-    }
-
-    function getHealthBadgeColor(health: string): string {
-        switch (health.toUpperCase()) {
-            case "ONLINE":
-                return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-            case "DEGRADED":
-                return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-            case "OFFLINE":
-            case "UNAVAIL":
-            case "FAULTED":
-                return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-            default:
-                return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400";
-        }
     }
 </script>
 

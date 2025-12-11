@@ -20,6 +20,7 @@
         Lightbulb,
     } from "@lucide/svelte";
     import DiskSlotGrid from "./DiskSlotGrid.svelte";
+    import { getHealthBadgeColor } from "./utils";
 
     interface Props {
         poolName: string;
@@ -123,19 +124,6 @@
                 }),
             );
         });
-    }
-
-    function getHealthBadgeClass(health: string): string {
-        switch (health?.toUpperCase()) {
-            case "ONLINE":
-                return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-            case "DEGRADED":
-                return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-            case "FAULTED":
-                return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-            default:
-                return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400";
-        }
     }
 
     function getHealthIcon(health: string) {
@@ -275,7 +263,7 @@
                         </h2>
                         <div class="flex items-center gap-3 mt-1">
                             <span
-                                class="px-2 py-0.5 rounded-full text-xs font-medium {getHealthBadgeClass(
+                                class="px-2 py-0.5 rounded-full text-xs font-medium {getHealthBadgeColor(
                                     pool.health,
                                 )}"
                             >
