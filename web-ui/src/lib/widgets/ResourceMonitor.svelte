@@ -2,22 +2,9 @@
     import { onMount } from "svelte";
     import { Cpu, MemoryStick, Clock } from "@lucide/svelte";
     import { api, type SystemStats } from "$lib/api";
-    import { formatBytes } from "$lib/utils";
+    import { formatBytes, formatUptime } from "$lib/utils";
 
     let stats = $state<SystemStats | null>(null);
-
-    function formatUptime(seconds: number): string {
-        const days = Math.floor(seconds / (3600 * 24));
-        const hours = Math.floor((seconds % (3600 * 24)) / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-
-        const parts = [];
-        if (days > 0) parts.push(`${days}d`);
-        if (hours > 0) parts.push(`${hours}h`);
-        parts.push(`${minutes}m`);
-
-        return parts.join(" ");
-    }
 
     async function refreshStats() {
         try {
