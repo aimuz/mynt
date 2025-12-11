@@ -12,7 +12,8 @@
     import Dock, { type DesktopApp } from "$lib/components/Dock.svelte";
     import Window from "$lib/components/Window.svelte";
     import Widget from "$lib/components/Widget.svelte";
-    import SystemStatus from "$lib/widgets/SystemStatus.svelte";
+    import StorageStatus from "$lib/widgets/StorageStatus.svelte";
+    import ResourceMonitor from "$lib/widgets/ResourceMonitor.svelte";
     import Clock from "$lib/widgets/Clock.svelte";
     import RecentNotifications from "$lib/widgets/RecentNotifications.svelte";
     import { onMount } from "svelte";
@@ -319,9 +320,15 @@
     <div class="pt-12 p-6 flex gap-6 h-[calc(100vh-8rem)]">
         <!-- Left: Widgets Area - Fixed width on large screens -->
         <div class="w-80 shrink-0 space-y-4 overflow-y-auto">
-            <Widget title="System Status" icon={Activity} size="medium">
+            <Widget title="Resources" icon={Activity} size="medium">
                 {#snippet children()}
-                    <SystemStatus />
+                    <ResourceMonitor />
+                {/snippet}
+            </Widget>
+
+            <Widget title="Storage" icon={Database} size="medium">
+                {#snippet children()}
+                    <StorageStatus />
                 {/snippet}
             </Widget>
 
