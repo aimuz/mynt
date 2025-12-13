@@ -137,11 +137,6 @@ func buildDataset(dj *DatasetListJSON) Dataset {
 
 // CreatePool creates a new ZFS pool.
 func (m *Manager) CreatePool(ctx context.Context, req CreatePoolRequest) error {
-	// Add optional properties (none for now, but structure is ready)
-	properties := map[string]string{
-		"mountpoint": fmt.Sprintf("/mnt/%s", req.Name),
-	}
-
 	// Build vdev args
 	vdevArgs := make([]string, 0)
 	if req.Type != "" {
@@ -149,9 +144,21 @@ func (m *Manager) CreatePool(ctx context.Context, req CreatePoolRequest) error {
 	}
 	vdevArgs = append(vdevArgs, req.Devices...)
 
-	_, err := gozfs.CreateZpool(req.Name, properties, vdevArgs...)
+	// Create pool without dataset properties (mountpoint is a dataset property, not pool property)
+	_, err := gozfs.CreateZpool(req.Name, nil, vdevArgs...)
 	if err != nil {
 		return fmt.Errorf("failed to create pool: %w", err)
+	}
+
+	// Set mountpoint on the root dataset
+	rootDataset, err := gozfs.GetDataset(req.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get root dataset: %w", err)
+	}
+
+	mountpoint := fmt.Sprintf("/mnt/%s", req.Name)
+	if err := rootDataset.SetProperty("mountpoint", mountpoint); err != nil {
+		return fmt.Errorf("failed to set mountpoint: %w", err)
 	}
 
 	return nil

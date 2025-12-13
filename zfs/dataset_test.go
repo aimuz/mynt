@@ -2,132 +2,88 @@ package zfs
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
-func TestCreateDataset(t *testing.T) {
+func TestCreateDataset_Validation(t *testing.T) {
 	tests := []struct {
-		name        string
-		req         CreateDatasetRequest
-		wantErr     bool
-		errContains string
+		name    string
+		req     CreateDatasetRequest
+		wantErr string
 	}{
 		{
-			name: "missing_name",
-			req: CreateDatasetRequest{
-				Type: "filesystem",
-			},
-			wantErr:     true,
-			errContains: "dataset name is required",
+			name:    "missing_name",
+			req:     CreateDatasetRequest{Type: "filesystem"},
+			wantErr: "dataset name is required",
 		},
 		{
-			name: "volume_without_size",
-			req: CreateDatasetRequest{
-				Name: "pool/volume2",
-				Type: "volume",
-			},
-			wantErr:     true,
-			errContains: "size is required for volumes",
+			name:    "volume_without_size",
+			req:     CreateDatasetRequest{Name: "pool/volume2", Type: "volume"},
+			wantErr: "quota (size) is required for volumes",
 		},
 	}
 
+	m := NewManager()
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewManager()
-			err := m.CreateDataset(context.Background(), tt.req)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CreateDataset() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			err := m.CreateDataset(ctx, tt.req)
+			if err == nil {
+				t.Fatalf("expected error, got nil")
 			}
-
-			if tt.wantErr && tt.errContains != "" {
-				if err == nil || err.Error() == "" {
-					t.Errorf("expected error to contain %q, got nil", tt.errContains)
-				} else if err.Error() != "" && len(err.Error()) > 0 {
-					// Just check error is not empty
-					t.Logf("Error message: %s", err.Error())
-				}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %q, want containing %q", err.Error(), tt.wantErr)
 			}
 		})
 	}
 }
 
-func TestDestroyDataset(t *testing.T) {
-	tests := []struct {
-		name        string
-		datasetName string
-		wantErr     bool
-		errContains string
-	}{
-		{
-			name:        "missing_name",
-			datasetName: "",
-			wantErr:     true,
-			errContains: "dataset name is required",
-		},
+func TestDestroyDataset_Validation(t *testing.T) {
+	m := NewManager()
+	err := m.DestroyDataset(context.Background(), "")
+	if err == nil {
+		t.Fatal("expected error for empty dataset name")
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := NewManager()
-			err := m.DestroyDataset(context.Background(), tt.datasetName)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("DestroyDataset() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if tt.wantErr && tt.errContains != "" {
-				if err == nil || err.Error() == "" {
-					t.Errorf("expected error to contain %q, got nil", tt.errContains)
-				}
-			}
-		})
+	if want := "dataset name is required"; !strings.Contains(err.Error(), want) {
+		t.Errorf("error = %q, want containing %q", err.Error(), want)
 	}
 }
 
-func TestSetProperty(t *testing.T) {
+func TestSetProperty_Validation(t *testing.T) {
 	tests := []struct {
-		name        string
-		datasetName string
-		key         string
-		value       string
-		wantErr     bool
-		errContains string
+		name    string
+		dataset string
+		key     string
+		value   string
+		wantErr string
 	}{
 		{
-			name:        "missing_dataset_name",
-			datasetName: "",
-			key:         "compression",
-			value:       "lz4",
-			wantErr:     true,
-			errContains: "dataset name and property key are required",
+			name:    "missing_dataset",
+			dataset: "",
+			key:     "compression",
+			value:   "lz4",
+			wantErr: "dataset name and property key are required",
 		},
 		{
-			name:        "missing_property_key",
-			datasetName: "pool/dataset1",
-			key:         "",
-			value:       "lz4",
-			wantErr:     true,
-			errContains: "dataset name and property key are required",
+			name:    "missing_key",
+			dataset: "pool/dataset1",
+			key:     "",
+			value:   "lz4",
+			wantErr: "dataset name and property key are required",
 		},
 	}
 
+	m := NewManager()
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewManager()
-			err := m.SetProperty(context.Background(), tt.datasetName, tt.key, tt.value)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("SetProperty() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			err := m.SetProperty(ctx, tt.dataset, tt.key, tt.value)
+			if err == nil {
+				t.Fatalf("expected error, got nil")
 			}
-
-			if tt.wantErr && tt.errContains != "" {
-				if err == nil || err.Error() == "" {
-					t.Errorf("expected error to contain %q, got nil", tt.errContains)
-				}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %q, want containing %q", err.Error(), tt.wantErr)
 			}
 		})
 	}

@@ -1,0 +1,40 @@
+{
+    "output_version": {
+        "command": "zfs list",
+        "vers_major": 0,
+        "vers_minor": 1
+    },
+    "datasets": {
+        "testpool/data@snap1": {
+            "name": "testpool/data@snap1",
+            "type": "SNAPSHOT",
+            "pool": "testpool",
+            "createtxg": "9",
+            "dataset": "testpool/data",
+            "snapshot_name": "snap1",
+            "properties": {
+                "used": {
+                    "value": "0",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                },
+                "referenced": {
+                    "value": "24576",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                },
+                "creation": {
+                    "value": "1702468800",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                }
+            }
+        }
+    }
+}

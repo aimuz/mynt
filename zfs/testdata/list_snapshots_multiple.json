@@ -1,0 +1,102 @@
+{
+    "output_version": {
+        "command": "zfs list",
+        "vers_major": 0,
+        "vers_minor": 1
+    },
+    "datasets": {
+        "testpool/data@manual-backup": {
+            "name": "testpool/data@manual-backup",
+            "type": "SNAPSHOT",
+            "pool": "testpool",
+            "createtxg": "9",
+            "dataset": "testpool/data",
+            "snapshot_name": "manual-backup",
+            "properties": {
+                "used": {
+                    "value": "0",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                },
+                "referenced": {
+                    "value": "24576",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                },
+                "creation": {
+                    "value": "1702468800",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                }
+            }
+        },
+        "testpool/data@auto-daily-20241213-120000": {
+            "name": "testpool/data@auto-daily-20241213-120000",
+            "type": "SNAPSHOT",
+            "pool": "testpool",
+            "createtxg": "10",
+            "dataset": "testpool/data",
+            "snapshot_name": "auto-daily-20241213-120000",
+            "properties": {
+                "used": {
+                    "value": "0",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                },
+                "referenced": {
+                    "value": "24576",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                },
+                "creation": {
+                    "value": "1702555200",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                }
+            }
+        },
+        "testpool/data@auto-hourly-20241214-080000": {
+            "name": "testpool/data@auto-hourly-20241214-080000",
+            "type": "SNAPSHOT",
+            "pool": "testpool",
+            "createtxg": "11",
+            "dataset": "testpool/data",
+            "snapshot_name": "auto-hourly-20241214-080000",
+            "properties": {
+                "used": {
+                    "value": "0",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                },
+                "referenced": {
+                    "value": "24576",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                },
+                "creation": {
+                    "value": "1702627200",
+                    "source": {
+                        "type": "NONE",
+                        "data": "-"
+                    }
+                }
+            }
+        }
+    }
+}

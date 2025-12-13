@@ -1,0 +1,58 @@
+# Lima VM for mynt integration tests
+# Usage: limactl create --name=mynt lima-mynt.yaml
+#
+# This VM provides a Debian environment with ZFS for running integration tests.
+
+images:
+  - location: "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-arm64.qcow2"
+    arch: "aarch64"
+  - location: "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2"
+    arch: "x86_64"
+
+cpus: 2
+memory: 4GiB
+disk: 20GiB
+
+# Mount project directory read-only; tests write to /tmp
+mounts:
+  - location: "~"
+    writable: false
+  - location: "/tmp/lima"
+    writable: true
+
+# Install ZFS after first boot
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+
+      if command -v zfs &> /dev/null && lsmod | grep -q zfs; then
+        echo "ZFS already installed and loaded"
+        exit 0
+      fi
+
+      echo "Configuring repositories for ZFS..."
+
+      cat > /etc/apt/sources.list.d/debian-backports.sources <<EOF
+      Types: deb deb-src
+      URIs: https://deb.debian.org/debian
+      Suites: bookworm-backports
+      Components: main contrib
+      Enabled: yes
+      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+      EOF
+
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y linux-headers-$(uname -r)
+
+      echo "Installing ZFS from bookworm-backports..."
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -t bookworm-backports \
+        dkms \
+        zfs-dkms \
+        zfsutils-linux
+
+      modprobe zfs
+
+      echo "ZFS provisioning complete"
+      zfs version
