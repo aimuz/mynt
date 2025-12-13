@@ -18,6 +18,7 @@ var IntegrationEnabled = false
 // RequireIntegration skips t unless integration tests are enabled.
 // Call this at the start of any test that requires real system resources.
 func RequireIntegration(t *testing.T) {
+	t.Helper()
 	if !IntegrationEnabled {
 		t.Skip("skipping integration test (run with -tags=integration)")
 	}
