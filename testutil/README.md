@@ -1,44 +1,34 @@
-# Test Utilities
+# Package testutil
 
-This package provides utilities for testing Mynt NAS.
+Test helpers for mynt.
 
-## Integration Test Flag
+## Integration Tests
 
-Use the `INTEGRATION_TESTS=1` environment variable to run integration tests that require real system resources.
+Integration tests require real system resources (ZFS pools, disk devices, etc.)
+and are skipped by default.
 
 ```bash
-# Run only unit tests (skip integration)
+# Run unit tests only (default)
 go test ./...
 
 # Run all tests including integration
-INTEGRATION_TESTS=1 go test ./...
-
-# Or use make target
-make test-integration
+go test -tags=integration ./...
 ```
 
-## Usage in Tests
+## Usage
 
 ```go
-import "go.aimuz.me/mynt/testutil"
-
-func TestWithRealResources(t *testing.T) {
-    testutil.SkipIfNotIntegration(t)
-    // This test only runs when INTEGRATION_TESTS=1
+func TestZFSPoolCreate(t *testing.T) {
+    testutil.RequireIntegration(t)
+    // Test runs only with -tags=integration
 }
 ```
 
-## Command Execution Mocking
+## Design
 
-For mocking command execution, see the `command` package:
+The package uses a simple pattern:
 
-```go
-import "go.aimuz.me/mynt/command"
+- `integration.go` — defines `IntegrationEnabled` (default false) and `RequireIntegration`
+- `integration_on.go` — build-tagged file that sets `IntegrationEnabled = true` via init
 
-// Use mock executor in tests
-mock := command.NewMock()
-mock.SetOutput("zfs", []byte("pool1"))
-
-// Use real executor in production
-exec := command.NewExecutor()
-```
+This follows the Go standard library pattern (e.g., `race.go`/`race0.go`).
