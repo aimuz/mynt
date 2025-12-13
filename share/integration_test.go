@@ -10,8 +10,8 @@ import (
 	"go.aimuz.me/mynt/testutil"
 )
 
-// TestIntegration_SambaConfig tests full Samba configuration workflow.
-// Requires a real Samba installation to validate config with testparm.
+// TestIntegration_SambaConfig validates generated config with real testparm.
+// This is the unique value of integration tests - unit tests can't run testparm.
 func TestIntegration_SambaConfig(t *testing.T) {
 	testutil.RequireIntegration(t)
 
@@ -27,98 +27,30 @@ func TestIntegration_SambaConfig(t *testing.T) {
 	repo := store.NewShareRepo(db)
 	mgr := NewManager(repo, configPath)
 
-	tests := []struct {
-		name  string
-		share store.Share
-		want  []string // expected strings in config
-	}{
-		{
-			name: "public share",
-			share: store.Share{
-				Name:      "public-media",
-				Path:      tmpDir,
-				Protocol:  "smb",
-				Comment:   "Public Media Library",
-				ShareType: store.ShareTypePublic,
-				ReadOnly:  true,
-			},
-			want: []string{
-				"[public-media]",
-				"guest ok = yes",
-				"read only = yes",
-			},
-		},
-		{
-			name: "restricted share",
-			share: store.Share{
-				Name:       "finance",
-				Path:       tmpDir,
-				Protocol:   "smb",
-				Comment:    "Finance Dept",
-				ShareType:  store.ShareTypeRestricted,
-				ValidUsers: "admin,accountant",
-			},
-			want: []string{
-				"[finance]",
-				"guest ok = no",
-				"valid users = admin,accountant",
-			},
-		},
-		{
-			name: "normal share",
-			share: store.Share{
-				Name:       "projects",
-				Path:       tmpDir,
-				Protocol:   "smb",
-				Comment:    "Project Files",
-				ShareType:  store.ShareTypeNormal,
-				Browseable: true,
-				GuestOK:    false,
-			},
-			want: []string{
-				"[projects]",
-				"browseable = yes",
-				"guest ok = no",
-			},
-		},
+	// Create multiple share types to validate testparm handles them all
+	shares := []store.Share{
+		{Name: "public", Path: tmpDir, Protocol: "smb", ShareType: store.ShareTypePublic},
+		{Name: "restricted", Path: tmpDir, Protocol: "smb", ShareType: store.ShareTypeRestricted, ValidUsers: "admin"},
+		{Name: "normal", Path: tmpDir, Protocol: "smb", ShareType: store.ShareTypeNormal},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Save share
-			s := tt.share
-			if err := repo.Save(&s); err != nil {
-				t.Fatalf("Save: %v", err)
-			}
+	for i := range shares {
+		if err := repo.Save(&shares[i]); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+	}
 
-			// Generate config
-			if err := mgr.generateSMBConfig(); err != nil {
-				t.Fatalf("generateSMBConfig: %v", err)
-			}
+	if err := mgr.generateSMBConfig(); err != nil {
+		t.Fatalf("generateSMBConfig: %v", err)
+	}
 
-			// Read and verify config content
-			data, err := os.ReadFile(configPath)
-			if err != nil {
-				t.Fatalf("ReadFile: %v", err)
-			}
-			config := string(data)
-
-			for _, want := range tt.want {
-				if !strings.Contains(config, want) {
-					t.Errorf("config missing %q", want)
-				}
-			}
-
-			// Validate config with testparm
-			if err := mgr.testConfig(); err != nil {
-				t.Errorf("testConfig: %v", err)
-			}
-		})
+	// The real test: validate with testparm
+	if err := mgr.testConfig(); err != nil {
+		t.Fatalf("testparm validation failed: %v", err)
 	}
 }
 
-// TestIntegration_ShareLifecycle tests full share CRUD operations.
-// Uses generateSMBConfig directly without reloadSamba (requires sudo).
+// TestIntegration_ShareLifecycle tests share CRUD with real testparm validation.
 func TestIntegration_ShareLifecycle(t *testing.T) {
 	testutil.RequireIntegration(t)
 
@@ -134,35 +66,25 @@ func TestIntegration_ShareLifecycle(t *testing.T) {
 	repo := store.NewShareRepo(db)
 	mgr := NewManager(repo, configPath)
 
+	var shareID int64
+
 	t.Run("Create", func(t *testing.T) {
 		share := &store.Share{
-			Name:      "test-lifecycle",
+			Name:      "lifecycle-test",
 			Path:      tmpDir,
 			Protocol:  "smb",
-			Comment:   "Lifecycle Test",
 			ShareType: store.ShareTypePublic,
 		}
 		if err := repo.Save(share); err != nil {
 			t.Fatalf("Save: %v", err)
 		}
-		if share.ID == 0 {
-			t.Error("ID should be set after save")
-		}
+		shareID = share.ID
 
-		// Generate config
 		if err := mgr.generateSMBConfig(); err != nil {
 			t.Fatalf("generateSMBConfig: %v", err)
 		}
-
-		// Validate with testparm
 		if err := mgr.testConfig(); err != nil {
-			t.Errorf("testConfig: %v", err)
-		}
-
-		// Verify share in config
-		data, _ := os.ReadFile(configPath)
-		if !strings.Contains(string(data), "[test-lifecycle]") {
-			t.Error("share not found in config")
+			t.Fatalf("testparm: %v", err)
 		}
 	})
 
@@ -171,30 +93,26 @@ func TestIntegration_ShareLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListShares: %v", err)
 		}
-		if len(shares) == 0 {
-			t.Error("no shares found")
+		if len(shares) != 1 {
+			t.Errorf("len(shares) = %d, want 1", len(shares))
 		}
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		shares, _ := mgr.ListShares("smb")
-		if len(shares) == 0 {
-			t.Skip("no shares to delete")
-		}
-
-		id := shares[0].ID
-		if err := repo.Delete(id); err != nil {
+		if err := repo.Delete(shareID); err != nil {
 			t.Fatalf("Delete: %v", err)
 		}
-
-		// Regenerate config
 		if err := mgr.generateSMBConfig(); err != nil {
 			t.Fatalf("generateSMBConfig: %v", err)
 		}
-
-		// Validate with testparm
 		if err := mgr.testConfig(); err != nil {
-			t.Errorf("testConfig: %v", err)
+			t.Fatalf("testparm: %v", err)
+		}
+
+		// Verify share removed (this is lifecycle-specific, not content verification)
+		data, _ := os.ReadFile(configPath)
+		if strings.Contains(string(data), "[lifecycle-test]") {
+			t.Error("deleted share still in config")
 		}
 	})
 }
