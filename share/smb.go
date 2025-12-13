@@ -40,6 +40,12 @@ func NewManager(repo *store.ShareRepo, configPath string) *Manager {
 	}
 }
 
+// SetExecutor sets the executor for running system commands.
+// This is primarily used for testing with mock executors.
+func (m *Manager) SetExecutor(exec sysexec.Executor) {
+	m.exec = exec
+}
+
 // CreateShare creates a new SMB share.
 func (m *Manager) CreateShare(share *store.Share) error {
 	// Validate path exists
