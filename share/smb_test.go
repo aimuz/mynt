@@ -2,188 +2,191 @@ package share
 
 import (
 	"bytes"
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/google/go-cmp/cmp"
 	"go.aimuz.me/mynt/store"
 )
 
-func TestGenerateShareSection_Normal(t *testing.T) {
-	mgr := &Manager{}
-
-	share := store.Share{
-		Name:       "projects",
-		Path:       "/tank/projects",
-		Comment:    "Project Files",
-		ShareType:  store.ShareTypeNormal,
-		ReadOnly:   false,
-		Browseable: true,
-		GuestOK:    false,
-		ValidUsers: "alice,bob,charlie",
-	}
-
-	var buf bytes.Buffer
-	mgr.generateShareSection(&buf, share)
-
-	config := buf.String()
-
-	// Verify share name
-	assert.Contains(t, config, "[projects]")
-
-	// Verify path
-	assert.Contains(t, config, "path = /tank/projects")
-
-	// Verify comment
-	assert.Contains(t, config, "comment = Project Files")
-
-	// Verify normal share settings
-	assert.Contains(t, config, "read only = no")
-	assert.Contains(t, config, "browseable = yes")
-	assert.Contains(t, config, "guest ok = no")
-	assert.Contains(t, config, "valid users = alice,bob,charlie")
-	assert.Contains(t, config, "create mask = 0664")
-	assert.Contains(t, config, "directory mask = 0775")
-}
-
-func TestGenerateShareSection_Public(t *testing.T) {
-	mgr := &Manager{}
-
-	share := store.Share{
-		Name:      "media",
-		Path:      "/tank/media",
-		Comment:   "Public Media Library",
-		ShareType: store.ShareTypePublic,
-		ReadOnly:  true,
-	}
-
-	var buf bytes.Buffer
-	mgr.generateShareSection(&buf, share)
-
-	config := buf.String()
-
-	// Verify share name
-	assert.Contains(t, config, "[media]")
-
-	// Verify path
-	assert.Contains(t, config, "path = /tank/media")
-
-	// Verify public share settings
-	assert.Contains(t, config, "browseable = yes")
-	assert.Contains(t, config, "guest ok = yes")
-	assert.Contains(t, config, "read only = yes")
-
-	// Public shares should have specific permissions
-	assert.Contains(t, config, "create mask = 0644")
-	assert.Contains(t, config, "directory mask = 0755")
-
-	// Public shares should not have valid users restriction
-	assert.NotContains(t, config, "valid users")
-}
-
-func TestGenerateShareSection_Restricted(t *testing.T) {
-	mgr := &Manager{}
-
-	share := store.Share{
-		Name:       "finance",
-		Path:       "/tank/finance",
-		Comment:    "Finance Department Only",
-		ShareType:  store.ShareTypeRestricted,
-		ReadOnly:   false,
-		ValidUsers: "admin,accountant,cfo",
-	}
-
-	var buf bytes.Buffer
-	mgr.generateShareSection(&buf, share)
-
-	config := buf.String()
-
-	// Verify share name
-	assert.Contains(t, config, "[finance]")
-
-	// Verify restricted share settings
-	assert.Contains(t, config, "browseable = yes")
-	assert.Contains(t, config, "guest ok = no")
-	assert.Contains(t, config, "read only = no")
-	assert.Contains(t, config, "valid users = admin,accountant,cfo")
-
-	// Restricted shares should have group permissions
-	assert.Contains(t, config, "create mask = 0664")
-	assert.Contains(t, config, "directory mask = 0775")
-}
-
-func TestGenerateShareSection_RestrictedWithoutValidUsers(t *testing.T) {
-	mgr := &Manager{}
-
-	share := store.Share{
-		Name:      "restricted-no-users",
-		Path:      "/tank/restricted",
-		Comment:   "Restricted without users",
-		ShareType: store.ShareTypeRestricted,
-		ReadOnly:  false,
-	}
-
-	var buf bytes.Buffer
-	mgr.generateShareSection(&buf, share)
-
-	config := buf.String()
-
-	// Should still be restricted
-	assert.Contains(t, config, "guest ok = no")
-
-	// Should not have valid users line if empty
-	assert.NotContains(t, config, "valid users =")
-}
-
-func TestGenerateShareSection_PublicReadWrite(t *testing.T) {
-	mgr := &Manager{}
-
-	share := store.Share{
-		Name:      "upload",
-		Path:      "/tank/upload",
-		Comment:   "Public Upload Area",
-		ShareType: store.ShareTypePublic,
-		ReadOnly:  false, // Writable
-	}
-
-	var buf bytes.Buffer
-	mgr.generateShareSection(&buf, share)
-
-	config := buf.String()
-
-	// Public but writable
-	assert.Contains(t, config, "guest ok = yes")
-	assert.Contains(t, config, "read only = no")
-}
-
 func TestBStr(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    bool
-		expected string
+		input bool
+		want  string
 	}{
-		{"true to yes", true, "yes"},
-		{"false to no", false, "no"},
+		{true, "yes"},
+		{false, "no"},
+	}
+	for _, tt := range tests {
+		if got := bStr(tt.input); got != tt.want {
+			t.Errorf("bStr(%v) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestGenerateShareSection(t *testing.T) {
+	mgr := &Manager{}
+
+	tests := []struct {
+		name  string
+		share store.Share
+		want  string
+	}{
+		{
+			name: "normal share with all options",
+			share: store.Share{
+				Name:       "projects",
+				Path:       "/tank/projects",
+				Comment:    "Project Files",
+				ShareType:  store.ShareTypeNormal,
+				ReadOnly:   false,
+				Browseable: true,
+				GuestOK:    false,
+				ValidUsers: "alice,bob,charlie",
+			},
+			want: `[projects]
+  path = /tank/projects
+  comment = Project Files
+  read only = no
+  browseable = yes
+  guest ok = no
+  valid users = alice,bob,charlie
+  create mask = 0664
+  directory mask = 0775
+
+`,
+		},
+		{
+			name: "normal share read-only hidden with guest",
+			share: store.Share{
+				Name:       "test-normal",
+				Path:       "/tank/normal",
+				Comment:    "",
+				ShareType:  store.ShareTypeNormal,
+				ReadOnly:   true,
+				Browseable: false,
+				GuestOK:    true,
+				ValidUsers: "user1,user2",
+			},
+			want: `[test-normal]
+  path = /tank/normal
+  comment = 
+  read only = yes
+  browseable = no
+  guest ok = yes
+  valid users = user1,user2
+  create mask = 0664
+  directory mask = 0775
+
+`,
+		},
+		{
+			name: "public share read-only",
+			share: store.Share{
+				Name:      "media",
+				Path:      "/tank/media",
+				Comment:   "Public Media Library",
+				ShareType: store.ShareTypePublic,
+				ReadOnly:  true,
+			},
+			want: `[media]
+  path = /tank/media
+  comment = Public Media Library
+  browseable = yes
+  guest ok = yes
+  read only = yes
+  create mask = 0644
+  directory mask = 0755
+
+`,
+		},
+		{
+			name: "public share writable",
+			share: store.Share{
+				Name:      "upload",
+				Path:      "/tank/upload",
+				Comment:   "Public Upload Area",
+				ShareType: store.ShareTypePublic,
+				ReadOnly:  false,
+			},
+			want: `[upload]
+  path = /tank/upload
+  comment = Public Upload Area
+  browseable = yes
+  guest ok = yes
+  read only = no
+  create mask = 0644
+  directory mask = 0755
+
+`,
+		},
+		{
+			name: "restricted share with valid users",
+			share: store.Share{
+				Name:       "finance",
+				Path:       "/tank/finance",
+				Comment:    "Finance Department Only",
+				ShareType:  store.ShareTypeRestricted,
+				ReadOnly:   false,
+				ValidUsers: "admin,accountant,cfo",
+			},
+			want: `[finance]
+  path = /tank/finance
+  comment = Finance Department Only
+  browseable = yes
+  guest ok = no
+  read only = no
+  valid users = admin,accountant,cfo
+  create mask = 0664
+  directory mask = 0775
+
+`,
+		},
+		{
+			name: "restricted share without valid users",
+			share: store.Share{
+				Name:      "restricted-no-users",
+				Path:      "/tank/restricted",
+				Comment:   "Restricted without users",
+				ShareType: store.ShareTypeRestricted,
+				ReadOnly:  false,
+			},
+			want: `[restricted-no-users]
+  path = /tank/restricted
+  comment = Restricted without users
+  browseable = yes
+  guest ok = no
+  read only = no
+  create mask = 0664
+  directory mask = 0775
+
+`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := bStr(tt.input)
-			assert.Equal(t, tt.expected, result)
+			var buf bytes.Buffer
+			mgr.generateShareSection(&buf, tt.share)
+			got := buf.String()
+
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("generateShareSection() mismatch (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
 
-func TestGenerateSMBConfig_MultipleShares(t *testing.T) {
-	// Create in-memory database for testing
+func TestGenerateSMBConfig(t *testing.T) {
 	db, err := store.Open(":memory:")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
 	defer db.Close()
 
 	repo := store.NewShareRepo(db)
 
-	// Create test shares
 	shares := []store.Share{
 		{
 			Name:      "media",
@@ -201,143 +204,88 @@ func TestGenerateSMBConfig_MultipleShares(t *testing.T) {
 			ShareType:  store.ShareTypeRestricted,
 			ValidUsers: "admin,accountant",
 		},
-		{
-			Name:       "projects",
-			Path:       "/tank/projects",
-			Protocol:   "smb",
-			Comment:    "Project Files",
-			ShareType:  store.ShareTypeNormal,
-			Browseable: true,
-			GuestOK:    false,
-		},
 	}
 
 	for i := range shares {
-		err := repo.Save(&shares[i])
-		require.NoError(t, err)
+		if err := repo.Save(&shares[i]); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
 	}
 
-	// Create manager with temp config path
-	mgr := NewManager(repo, "/tmp/test-smb.conf")
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "smb.conf")
+	mgr := NewManager(repo, configPath)
 
-	// Generate config
-	err = mgr.generateSMBConfig()
-	require.NoError(t, err)
+	if err := mgr.generateSMBConfig(); err != nil {
+		t.Fatalf("generateSMBConfig: %v", err)
+	}
 
-	// Read generated config
-	// Note: In real scenario we would read the file, but for now we just verify no error
-	// In future, we could mock the file system or use afero
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	want := `[global]
+  workgroup = WORKGROUP
+  server string = Mynt NAS
+  security = user
+  map to guest = Bad User
+  log file = /var/log/samba/%m.log
+  max log size = 50
+
+[finance]
+  path = /tank/finance
+  comment = Finance Dept
+  browseable = yes
+  guest ok = no
+  read only = no
+  valid users = admin,accountant
+  create mask = 0664
+  directory mask = 0775
+
+[media]
+  path = /tank/media
+  comment = Public Media
+  browseable = yes
+  guest ok = yes
+  read only = yes
+  create mask = 0644
+  directory mask = 0755
+
+`
+
+	if diff := cmp.Diff(want, string(data)); diff != "" {
+		t.Errorf("generateSMBConfig() mismatch (-want +got):\n%s", diff)
+	}
 }
 
-func TestGenerateShareSection_AllShareTypes(t *testing.T) {
-	mgr := &Manager{}
+func TestNewManager_DefaultPaths(t *testing.T) {
+	db, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
 
-	testCases := []struct {
-		name           string
-		share          store.Share
-		mustContain    []string
-		mustNotContain []string
+	repo := store.NewShareRepo(db)
+
+	tests := []struct {
+		name       string
+		configPath string
+		wantEmpty  bool
 	}{
-		{
-			name: "normal_share_with_all_options",
-			share: store.Share{
-				Name:       "test-normal",
-				Path:       "/tank/normal",
-				ShareType:  store.ShareTypeNormal,
-				ReadOnly:   true,
-				Browseable: false,
-				GuestOK:    true,
-				ValidUsers: "user1,user2",
-			},
-			mustContain: []string{
-				"[test-normal]",
-				"read only = yes",
-				"browseable = no",
-				"guest ok = yes",
-				"valid users = user1,user2",
-			},
-			mustNotContain: []string{},
-		},
-		{
-			name: "public_share",
-			share: store.Share{
-				Name:      "test-public",
-				Path:      "/tank/public",
-				ShareType: store.ShareTypePublic,
-			},
-			mustContain: []string{
-				"browseable = yes",
-				"guest ok = yes",
-			},
-			mustNotContain: []string{
-				"valid users",
-			},
-		},
-		{
-			name: "restricted_share",
-			share: store.Share{
-				Name:       "test-restricted",
-				Path:       "/tank/restricted",
-				ShareType:  store.ShareTypeRestricted,
-				ValidUsers: "admin",
-			},
-			mustContain: []string{
-				"browseable = yes",
-				"guest ok = no",
-				"valid users = admin",
-			},
-			mustNotContain: []string{},
-		},
+		{"explicit path", "/custom/path.conf", false},
+		{"empty uses default", "", false},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			mgr.generateShareSection(&buf, tc.share)
-			config := buf.String()
-
-			for _, must := range tc.mustContain {
-				assert.Contains(t, config, must, "Config should contain: %s", must)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewManager(repo, tt.configPath)
+			if tt.configPath != "" && m.configPath != tt.configPath {
+				t.Errorf("configPath = %q, want %q", m.configPath, tt.configPath)
 			}
-
-			for _, mustNot := range tc.mustNotContain {
-				assert.NotContains(t, config, mustNot, "Config should not contain: %s", mustNot)
+			if tt.configPath == "" && m.configPath == "" {
+				t.Error("configPath should not be empty when not specified")
 			}
 		})
 	}
-}
-
-func TestGenerateShareSection_ConfigFormat(t *testing.T) {
-	mgr := &Manager{}
-
-	share := store.Share{
-		Name:      "format-test",
-		Path:      "/tank/test",
-		Comment:   "Format Test",
-		ShareType: store.ShareTypeNormal,
-	}
-
-	var buf bytes.Buffer
-	mgr.generateShareSection(&buf, share)
-
-	config := buf.String()
-	lines := strings.Split(config, "\n")
-
-	// First line should be the section header
-	assert.Equal(t, "[format-test]", lines[0])
-
-	// Each config line should start with two spaces
-	for i := 1; i < len(lines); i++ {
-		line := lines[i]
-		// Skip empty lines
-		if line == "" {
-			continue
-		}
-		// Config lines should start with two spaces
-		assert.True(t, strings.HasPrefix(line, "  "),
-			"Line %d should start with two spaces: %q", i, line)
-	}
-
-	// Should end with a blank line
-	assert.Equal(t, "", lines[len(lines)-1], "Last line should be empty")
 }
