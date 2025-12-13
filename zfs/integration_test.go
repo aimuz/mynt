@@ -30,11 +30,10 @@ func setupTestPool(t *testing.T) *Manager {
 	if err != nil {
 		t.Fatalf("failed to create vdev file: %v", err)
 	}
+	defer f.Close()
 	if err := f.Truncate(100 * 1024 * 1024); err != nil {
-		f.Close()
 		t.Fatalf("failed to truncate vdev file: %v", err)
 	}
-	f.Close()
 
 	// Create the pool
 	err = m.CreatePool(ctx, CreatePoolRequest{

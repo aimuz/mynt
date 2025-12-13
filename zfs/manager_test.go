@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"go.aimuz.me/mynt/sysexec"
 )
 
 func TestGetTemplateProperties(t *testing.T) {
@@ -345,7 +347,9 @@ func TestListDatasets_Validation(t *testing.T) {
 		{"invalid_dollar", "$(whoami)", true},
 	}
 
-	m := NewManager()
+	exec := sysexec.NewMock()
+	exec.SetOutput("zfs", []byte(`{"output_version":{},"datasets":{}}`))
+	m := &Manager{exec: exec}
 	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -374,7 +378,9 @@ func TestListPools_Validation(t *testing.T) {
 		{"invalid_semicolon", "tank;rm", true},
 	}
 
-	m := NewManager()
+	exec := sysexec.NewMock()
+	exec.SetOutput("zpool", []byte(`{"output_version":{},"pools":{}}`))
+	m := &Manager{exec: exec}
 	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

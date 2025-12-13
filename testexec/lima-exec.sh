@@ -30,14 +30,9 @@ fi
 REMOTE_PATH="/tmp/$(basename "$TEST_BINARY")-$$"
 limactl copy "$TEST_BINARY" "${LIMA_INSTANCE}:${REMOTE_PATH}"
 
-# Execute on VM and capture exit code
-set +e
+# Cleanup on exit (including Ctrl+C)
+trap 'limactl shell "$LIMA_INSTANCE" rm -f "$REMOTE_PATH"' EXIT
+
+# Execute on VM
 limactl shell "$LIMA_INSTANCE" chmod +x "$REMOTE_PATH"
 limactl shell "$LIMA_INSTANCE" sudo "$REMOTE_PATH" "$@"
-EXIT_CODE=$?
-set -e
-
-# Cleanup
-limactl shell "$LIMA_INSTANCE" rm -f "$REMOTE_PATH"
-
-exit $EXIT_CODE

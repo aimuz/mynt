@@ -36,7 +36,7 @@ provision:
 
       cat > /etc/apt/sources.list.d/debian-backports.sources <<EOF
       Types: deb deb-src
-      URIs: https://mirrors.tencent.com/debian
+      URIs: https://deb.debian.org/debian
       Suites: bookworm-backports
       Components: main contrib
       Enabled: yes

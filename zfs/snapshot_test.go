@@ -156,7 +156,7 @@ func TestParseZFSTimestamp(t *testing.T) {
 
 func TestListSnapshots_EmptyDataset(t *testing.T) {
 	m := NewManager()
-	_, err := m.ListSnapshots(nil, "")
+	_, err := m.ListSnapshots(t.Context(), "")
 	if err == nil {
 		t.Error("expected error for empty dataset name")
 	}
