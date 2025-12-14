@@ -52,7 +52,15 @@ provision:
         zfs-dkms \
         zfsutils-linux
 
+      # Install Samba for share package integration tests
+      echo "Installing Samba..."
+      DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        samba \
+        samba-common-bin
+
       modprobe zfs
 
-      echo "ZFS provisioning complete"
+      echo "Provisioning complete"
       zfs version
+      testparm --version
+
