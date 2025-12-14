@@ -110,7 +110,10 @@ func TestIntegration_ShareLifecycle(t *testing.T) {
 		}
 
 		// Verify share removed (this is lifecycle-specific, not content verification)
-		data, _ := os.ReadFile(configPath)
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
 		if strings.Contains(string(data), "[lifecycle-test]") {
 			t.Error("deleted share still in config")
 		}

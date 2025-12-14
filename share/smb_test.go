@@ -271,10 +271,9 @@ func TestNewManager_DefaultPaths(t *testing.T) {
 	tests := []struct {
 		name       string
 		configPath string
-		wantEmpty  bool
 	}{
-		{"explicit path", "/custom/path.conf", false},
-		{"empty uses default", "", false},
+		{"explicit path", "/custom/path.conf"},
+		{"empty uses default", ""},
 	}
 
 	for _, tt := range tests {
