@@ -50,7 +50,8 @@ provision:
       DEBIAN_FRONTEND=noninteractive apt-get install -y -t bookworm-backports \
         dkms \
         zfs-dkms \
-        zfsutils-linux
+        zfsutils-linux \
+        zfs-test
 
       # Install Samba for share package integration tests
       echo "Installing Samba..."
