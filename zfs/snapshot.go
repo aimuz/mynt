@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -196,10 +197,9 @@ func (m *Manager) CloneSnapshot(ctx context.Context, snapshotName, cloneName str
 
 // parseZFSTimestamp parses ZFS creation timestamp (Unix epoch as string).
 func parseZFSTimestamp(timestamp string) (time.Time, error) {
-	var epoch int64
-	_, err := fmt.Sscanf(timestamp, "%d", &epoch)
+	epoch, err := strconv.ParseInt(timestamp, 10, 64) // base 10, 64-bit integer
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, fmt.Errorf("failed to parse ZFS timestamp '%s': %w", timestamp, err)
 	}
 	return time.Unix(epoch, 0), nil
 }
