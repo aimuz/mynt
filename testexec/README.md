@@ -13,7 +13,7 @@ cd testexec
 make vm-create
 
 # Run integration tests on VM
-make test-integration
+GOOS=linux go test -tags=integration -exec ./testexec/lima-exec.sh ./...
 ```
 
 ## Commands
@@ -21,11 +21,12 @@ make test-integration
 | Command | Description |
 |---------|-------------|
 | `make vm-create` | Create and start VM with Debian + ZFS |
+| `make vm-rebuild` | Delete and recreate the VM |
 | `make vm-start` | Start existing VM |
 | `make vm-stop` | Stop VM |
 | `make vm-delete` | Delete VM |
 | `make vm-shell` | Open shell in VM |
-| `make test-integration` | Run integration tests on VM |
+| `make vm-status` | Show VM status and ZFS version |
 
 ## Manual Usage
 
