@@ -2,6 +2,7 @@ package zfs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	gozfs "github.com/mistifyio/go-zfs/v4"
@@ -142,6 +143,66 @@ func (m *Manager) SetQuota(ctx context.Context, name string, quota uint64) error
 // SetReservation sets a reservation on a dataset.
 func (m *Manager) SetReservation(ctx context.Context, name string, reservation uint64) error {
 	return m.SetProperty(ctx, name, "reservation", fmt.Sprintf("%d", reservation))
+}
+
+const zfsDatasetProperties = "name,type,used,available,referenced,mountpoint,compression,encryption,dedup,quota,reservation,volsize,usedbydataset"
+
+// listDatasets is the internal implementation for listing datasets.
+// If names are provided, only those datasets are queried.
+func (m *Manager) listDatasets(ctx context.Context, names ...string) ([]Dataset, error) {
+	if err := validateNames(names...); err != nil {
+		return nil, err
+	}
+
+	args := []string{"list", "-j", "-p", "-t", "filesystem,volume", "-o", zfsDatasetProperties}
+	args = append(args, names...)
+
+	out, err := m.exec.Output(ctx, "zfs", args...)
+	if err != nil {
+		return nil, fmt.Errorf("zfs list: %w", err)
+	}
+
+	var listJSON ZFSListJSON
+	if err := json.Unmarshal(out, &listJSON); err != nil {
+		return nil, fmt.Errorf("parse zfs list: %w", err)
+	}
+
+	datasets := make([]Dataset, 0, len(listJSON.Datasets))
+	for _, dj := range sortMapIter(listJSON.Datasets) {
+		datasets = append(datasets, buildDataset(dj))
+	}
+
+	return datasets, nil
+}
+
+// buildDataset constructs a Dataset from JSON data.
+func buildDataset(dj *DatasetListJSON) Dataset {
+	dsType := DatasetFilesystem
+	if dj.Type == "VOLUME" {
+		dsType = DatasetVolume
+	}
+
+	used := parseUint(dj.GetProp("used"))
+	quota := parseUint(dj.GetProp("quota"))
+	if dsType == DatasetVolume {
+		used = parseUint(dj.GetProp("usedbydataset"))
+		quota = parseUint(dj.GetProp("volsize"))
+	}
+
+	return Dataset{
+		Name:          dj.Name,
+		Pool:          dj.Pool,
+		Type:          dsType,
+		Used:          used,
+		Available:     parseUint(dj.GetProp("available")),
+		Referenced:    parseUint(dj.GetProp("referenced")),
+		Mountpoint:    dj.GetProp("mountpoint"),
+		Compression:   dj.GetProp("compression"),
+		Encryption:    dj.GetProp("encryption"),
+		Deduplication: dj.GetProp("dedup"),
+		Quota:         quota,
+		Reservation:   parseUint(dj.GetProp("reservation")),
+	}
 }
 
 // GetTemplateProperties returns ZFS properties for a given use-case template.

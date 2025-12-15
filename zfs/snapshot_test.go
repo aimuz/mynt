@@ -26,7 +26,7 @@ func TestCreateSnapshot_Validation(t *testing.T) {
 	m := NewManager()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := m.CreateSnapshot(nil, tt.req)
+			_, err := m.CreateSnapshot(t.Context(), tt.req)
 			if err == nil {
 				t.Fatalf("expected error, got nil")
 			}
@@ -50,7 +50,7 @@ func TestDestroySnapshot_Validation(t *testing.T) {
 	m := NewManager()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := m.DestroySnapshot(nil, tt.input)
+			err := m.DestroySnapshot(t.Context(), tt.input)
 			if err == nil {
 				t.Fatalf("expected error, got nil")
 			}
@@ -73,7 +73,7 @@ func TestRollbackSnapshot_Validation(t *testing.T) {
 	m := NewManager()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := m.RollbackSnapshot(nil, tt.input); err == nil {
+			if err := m.RollbackSnapshot(t.Context(), tt.input); err == nil {
 				t.Error("expected error, got nil")
 			}
 		})
@@ -94,7 +94,7 @@ func TestCloneSnapshot_Validation(t *testing.T) {
 	m := NewManager()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := m.CloneSnapshot(nil, tt.snapshot, tt.cloneName); err == nil {
+			if err := m.CloneSnapshot(t.Context(), tt.snapshot, tt.cloneName); err == nil {
 				t.Error("expected error, got nil")
 			}
 		})
