@@ -225,8 +225,10 @@ func open(path []byte) (fd int, err error) {
 	return int(r1), err
 }
 
-// This is not thread safe.
-// TODO: dynamically resize the buffer.
+// read reads a file into the collector's buffer.
+// Caller must hold c.mu. The 4KB buffer is sufficient for all /proc files
+// we read (stat, status, cmdline). For cmdline with very long arguments,
+// we simply truncate, which is acceptable for display purposes.
 func (c *Collector) read(path []byte) ([]byte, error) {
 	fd, err := open(path)
 	if err != nil {
